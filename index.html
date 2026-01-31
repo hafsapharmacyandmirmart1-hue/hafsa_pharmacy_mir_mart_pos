@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Hafsa Pharmacy & Mir Mart POS</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Login page specific styles */
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 420px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .sidebar-brand {
+            padding: 0;
+            border: none;
+            background: transparent;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .sidebar-brand img {
+            max-width: 280px;
+            height: auto;
+            filter: none;
+            border: none;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header h2 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .login-header p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .input-with-icon {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #95a5a6;
+            font-size: 16px;
+        }
+
+        .input-with-icon input {
+            padding-left: 45px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #95a5a6;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+        }
+
+        /* login-footer removed for security; footer styles cleaned up */
+
+        /* Button loader styles */
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            position: relative;
+            min-height: 50px;
+        }
+
+        .btn-login .btn-text {
+            transition: opacity 0.3s;
+        }
+
+        .btn-login .btn-loader {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .btn-login.loading .btn-text {
+            opacity: 0;
+        }
+
+        .btn-login.loading .btn-loader {
+            display: block;
+        }
+
+        .btn-loader {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 25px;
+                margin: 10px;
+            }
+
+            .sidebar-brand img {
+                max-width: 220px;
+            }
+
+            .login-header h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="sidebar-brand">
+            <img src="images/logo.png" alt="Hafsa Pharmacy & Mir Mart">
+        </div>
+
+        <div class="login-header">
+            <h2>Welcome Back</h2>
+            <p>Sign in to your account to continue</p>
+        </div>
+
+        <div id="message" class="alert" style="display: none;"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username"><i class="fas fa-user"></i> Username</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-user input-icon"></i>
+                    <input type="text" id="username" class="form-control" required placeholder="Enter username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="password" class="form-control" required placeholder="Enter password">
+                    <button type="button" class="password-toggle" id="passwordToggle">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-login" id="loginButton">
+                <span class="btn-text">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </span>
+                <div class="btn-loader"></div>
+            </button>
+        </form>
+
+        <!-- Footer removed for security; no public credentials displayed -->
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        // Toggle password visibility
+        document.getElementById('passwordToggle').addEventListener('click', function () {
+            const passwordInput = document.getElementById('password');
+            const icon = this.querySelector('i');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        });
+
+        // Form submission with loader
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const loginButton = document.getElementById('loginButton');
+            const messageDiv = document.getElementById('message');
+
+            // Validate inputs
+            if (!username || !password) {
+                showMessage('Please enter both username and password', 'error');
+                return;
+            }
+
+            // Show loading state
+            loginButton.classList.add('loading');
+            loginButton.disabled = true;
+            messageDiv.style.display = 'none';
+
+            try {
+                // Simulate network delay for better UX
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const result = await login(username, password);
+
+                if (result.success) {
+                    // Login successful - show success message briefly
+                    showMessage('Login successful! Redirecting...', 'success');
+
+                    // Wait a moment to show success message
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Check user role and redirect accordingly
+                    const user = JSON.parse(localStorage.getItem('pos_user'));
+                    if (user) {
+                        switch (user.role) {
+                            case 'owner':
+                            case 'inventory':
+                            case 'reception':
+                                window.location.href = 'add-items.html';
+                                break;
+                            case 'customer':
+                                window.location.href = 'price-view.html';
+                                break;
+                            default:
+                                window.location.href = 'add-items.html';
+                        }
+                    }
+                } else {
+                    // Login failed
+                    showMessage(result.error || 'Invalid username or password', 'error');
+                    loginButton.classList.remove('loading');
+                    loginButton.disabled = false;
+
+                    // Shake animation for error
+                    loginButton.style.animation = 'shake 0.5s ease-in-out';
+                    setTimeout(() => {
+                        loginButton.style.animation = '';
+                    }, 500);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('Network error. Please try again.', 'error');
+                loginButton.classList.remove('loading');
+                loginButton.disabled = false;
+            }
+        });
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'}"></i> ${message}`;
+            messageDiv.className = `alert alert-${type === 'error' ? 'danger' : 'success'}`;
+            messageDiv.style.display = 'flex';
+
+            // Auto-hide success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // Add shake animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Auto-focus on username input
+        document.getElementById('username').focus();
+
+        // Enter key to submit
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !document.getElementById('loginButton').disabled) {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owner Dashboard - Hafsa Pharmacy & Mir Mart</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-brand">
+                <img src="images/logo.png" alt="Hafsa Pharmacy & Mir Mart">
+            </div>
+
+            <ul class="sidebar-menu">
+                <li><a href="owner.html" class="active"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a>
+                </li>
+                <li><a href="reception.html"><i class="fas fa-cash-register"></i> <span>POS Sale</span></a></li>
+                <li><a href="add-items.html"><i class="fas fa-box"></i> <span>Inventory</span></a></li>
+                <li><a href="price-view.html"><i class="fas fa-tags"></i> <span>Price View</span></a></li>
+                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1><i class="fas fa-tachometer-alt"></i> Owner Dashboard</h1>
+                <div id="userInfo" class="user-info"></div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #3498db;">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalProducts">0</h3>
+                        <p>Total Products</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #27ae60;">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalSales">0</h3>
+                        <p>Today's Sales</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #e74c3c;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="lowStock">0</h3>
+                        <p>Low Stock Items</p>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #f39c12;">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalUsers">0</h3>
+                        <p>Total Users</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Sales -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-history"></i> Recent Sales</h2>
+                    <button class="btn btn-primary" onclick="refreshSales()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="table-container" style="max-height:320px; overflow-y:auto;">
+                    <table class="table" id="salesTable">
+                        <thead>
+                            <tr>
+                                <th>Sale ID</th>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Total Price</th>
+                                <th>Sold By</th>
+                                <th>Date & Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Sales data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Products -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-boxes"></i> Recent Products</h2>
+                    <button class="btn btn-primary" onclick="refreshProducts()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="table-container" style="max-height:320px; overflow-y:auto;">
+                    <table class="table" id="productsTable">
+                        <thead>
+                            <tr>
+                                <th>Product ID</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Purchase Price</th>
+                                <th>Sale Price</th>
+                                <th>Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Products data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Activity Logs -->
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-clipboard-list"></i> Activity Logs</h2>
+                    <button class="btn btn-primary" onclick="refreshLogs()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="table-container" style="max-height:320px; overflow-y:auto;">
+                    <table class="table" id="logsTable">
+                        <thead>
+                            <tr>
+                                <th>Log ID</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Logs data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="google-sheet-api.js"></script>
+    <script src="products.js"></script>
+    <script>
+        // Check access
+        if (!checkPageAccess('owner')) {
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', function (e) {
+            e.preventDefault();
+            logout();
+        });
+
+        async function loadDashboardData() {
+            try {
+                // Load products
+                const products = await getProducts();
+                document.getElementById('totalProducts').textContent = products.length;
+
+                // Count low stock items (quantity < 10)
+                const lowStockCount = products.filter(p => (parseInt(p.quantity) || 0) < 10).length;
+                document.getElementById('lowStock').textContent = lowStockCount;
+
+                // Load sales (use V2 which provides separate date/time fields)
+                const sales = await getSalesV2();
+                const today = new Date();
+                const todayISO = today.toISOString().split('T')[0];
+                const todayLocale = today.toLocaleDateString('en-GB');
+
+                const todaySales = sales.filter(sale => {
+                    // Support multiple possible date fields returned by API
+                    if (sale.date) {
+                        const sd = String(sale.date).trim();
+                        return sd === todayISO || sd === todayLocale;
+                    }
+                    if (sale.date_time) {
+                        const sd = String(sale.date_time).trim();
+                        return sd.startsWith(todayISO) || sd.startsWith(todayLocale);
+                    }
+                    // fallback: check datetime-like fields
+                    if (sale.date_time_string) {
+                        const sd = String(sale.date_time_string).trim();
+                        return sd.startsWith(todayISO) || sd.startsWith(todayLocale);
+                    }
+                    return false;
+                });
+
+                const todayTotal = todaySales.reduce((sum, sale) => {
+                    const amount = parseFloat(sale.total_amount || sale.total_price || sale.total || sale.totalAmount || 0) || 0;
+                    return sum + amount;
+                }, 0);
+
+                document.getElementById('totalSales').textContent = 'Rs. ' + todayTotal.toFixed(2);
+
+                // Load users
+                const users = await getUsers();
+                document.getElementById('totalUsers').textContent = users.length;
+
+                // Populate sales table with today's sales only (all, container is scrollable)
+                const salesTable = document.getElementById('salesTable').querySelector('tbody');
+                salesTable.innerHTML = '';
+                if (todaySales.length === 0) {
+                    salesTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:12px">No sales for today</td></tr>`;
+                } else {
+                    // Show most recent first
+                    todaySales.slice().reverse().forEach(sale => {
+                        const row = salesTable.insertRow();
+                        row.innerHTML = `
+                            <td>${sale.sale_id || sale.order_number || 'N/A'}</td>
+                            <td>${sale.product_name || sale.customer_name || 'N/A'}</td>
+                            <td>${sale.quantity_sold || sale.total_items || '0'}</td>
+                            <td>Rs. ${(parseFloat(sale.total_price || sale.total_amount) || 0).toFixed(2)}</td>
+                            <td>${sale.sold_by || sale.sold_by || 'N/A'}</td>
+                            <td>${sale.date_time ? new Date(sale.date_time).toLocaleString() : (sale.time ? sale.time : 'N/A')}</td>
+                        `;
+                    });
+                }
+
+                // Populate products table (show all, most recent first; container will scroll after 10)
+                const productsTable = document.getElementById('productsTable').querySelector('tbody');
+                productsTable.innerHTML = '';
+                if (!products || products.length === 0) {
+                    productsTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:12px">No products found</td></tr>`;
+                } else {
+                    products.slice().reverse().forEach(product => {
+                        const row = productsTable.insertRow();
+                        row.innerHTML = `
+                            <td>${product.product_id || 'N/A'}</td>
+                            <td>${product.product_name || 'N/A'}</td>
+                            <td>${product.category || 'N/A'}</td>
+                            <td>Rs. ${(parseFloat(product.purchase_price) || 0).toFixed(2)}</td>
+                            <td>Rs. ${(parseFloat(product.sale_price) || 0).toFixed(2)}</td>
+                            <td>${product.quantity || '0'}</td>
+                        `;
+                    });
+                }
+
+                // Populate logs table with today's logs only (container scrolls)
+                const logs = await getLogs();
+                const logsTable = document.getElementById('logsTable').querySelector('tbody');
+                logsTable.innerHTML = '';
+                const todayLogs = (logs || []).filter(log => {
+                    if (!log) return false;
+                    const ts = log.timestamp || log.time || log.date_time || log.date;
+                    if (!ts) return false;
+                    const s = String(ts).trim();
+                    return s.startsWith(todayISO) || s.startsWith(todayLocale);
+                });
+
+                if (todayLogs.length === 0) {
+                    logsTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#666; padding:12px">No activity logs for today</td></tr>`;
+                } else {
+                    todayLogs.slice().reverse().forEach(log => {
+                        const row = logsTable.insertRow();
+                        row.innerHTML = `
+                            <td>${log.log_id || 'N/A'}</td>
+                            <td>${log.user || 'N/A'}</td>
+                            <td>${log.action || 'N/A'}</td>
+                            <td>${log.timestamp ? new Date(log.timestamp).toLocaleString() : (log.time ? log.time : 'N/A')}</td>
+                        `;
+                    });
+                }
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                alert('Error loading dashboard data. Please check console.');
+            }
+        }
+
+        function refreshSales() {
+            loadDashboardData();
+        }
+
+        function refreshProducts() {
+            loadDashboardData();
+        }
+
+        function refreshLogs() {
+            loadDashboardData();
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function () {
+            loadDashboardData();
+        });
+    </script>
+</body>
+
+</html>

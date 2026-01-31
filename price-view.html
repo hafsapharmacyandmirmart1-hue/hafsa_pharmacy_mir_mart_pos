@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Check Scanner - Customer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom styles for scanner interface */
+        .scan-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .scan-icon {
+            font-size: 100px;
+            color: #3498db;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+
+        .product-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            text-align: center;
+            padding: 40px 20px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .product-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            word-wrap: break-word;
+        }
+
+        .product-price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 20px 0;
+        }
+
+        .product-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .detail-item {
+            text-align: left;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .countdown {
+            margin-top: 30px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .countdown-number {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            margin: 0 5px;
+            animation: bounce 1s infinite;
+        }
+
+        .scan-input {
+            opacity: 0;
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+        }
+
+        /* Mobile Menu Toggle Button */
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .menu-toggle:hover {
+            background: #34495e;
+            transform: scale(1.05);
+        }
+
+        .menu-toggle.active {
+            left: 220px;
+            background: #e74c3c;
+        }
+
+        /* Logout Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .modal-message {
+            font-size: 18px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .modal-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-cancel {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #ddd;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #e9ecef;
+        }
+
+        .modal-btn-logout {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .modal-btn-logout:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(231, 76, 60, 0.3);
+        }
+
+        .modal-icon {
+            text-align: center;
+            font-size: 50px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e74c3c;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-100%);
+            }
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 220px;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+                position: fixed;
+                height: 100vh;
+                box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .menu-toggle {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            /* Keep main content clear of the fixed menu button on small screens */
+            .main-content {
+                padding-top: 70px;
+            }
+
+            /* Anchor sidebar to top-left and ensure proper stacking */
+            .sidebar {
+                top: 0;
+                left: 0;
+                z-index: 1002;
+            }
+
+            /* Ensure overlay sits below the menu button but above content */
+            .sidebar-overlay {
+                z-index: 1001;
+            }
+
+            .menu-toggle {
+                z-index: 1003;
+            }
+
+            /* Overlay when sidebar is open */
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 999;
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .scan-icon {
+                font-size: 80px;
+            }
+
+            .product-name {
+                font-size: 24px;
+            }
+
+            .product-price {
+                font-size: 36px;
+            }
+
+            .product-details {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                padding: 20px;
+                width: 95%;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .modal-btn {
+                width: 100%;
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+                margin-left: 60px;
+            }
+
+            .user-info {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .scan-icon {
+                font-size: 60px;
+            }
+
+            h2 {
+                font-size: 22px;
+            }
+
+            .product-name {
+                font-size: 20px;
+            }
+
+            .product-price {
+                font-size: 28px;
+            }
+
+            .menu-toggle {
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+                top: 10px;
+                left: 10px;
+            }
+
+            .menu-toggle.active {
+                left: 190px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+                margin-left: 50px;
+            }
+
+            .user-info {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Mobile Menu Toggle Button -->
+    <button class="menu-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Hidden barcode input -->
+    <input type="text" id="barcodeInput" class="scan-input" autocomplete="off" autofocus>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <img src="images/logo.png" alt="Hafsa Pharmacy & Mir Mart">
+        </div>
+
+        <ul class="sidebar-menu">
+            <li><a href="#" id="priceCheckBtn" class="active"><i class="fas fa-barcode"></i> <span>Price
+                        Check</span></a></li>
+            <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="header">
+            <h1><i class="fas fa-barcode"></i> Price Check Scanner</h1>
+            <div class="user-info">
+                <span>Customer View</span>
+            </div>
+        </div>
+
+        <!-- Scan Screen (Default) -->
+        <div id="scanScreen" class="scan-screen">
+            <div class="scan-icon">
+                <i class="fas fa-barcode"></i>
+            </div>
+            <h2>Scan a Product</h2>
+            <p style="color: #666; font-size: 18px; max-width: 500px; margin: 20px auto 30px;">
+                Point your barcode scanner at the product barcode to check the price and details.
+            </p>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; max-width: 500px; width: 100%;">
+                <h3><i class="fas fa-info-circle"></i> How to Use:</h3>
+                <ul style="text-align: left; margin-top: 10px; color: #666;">
+                    <li>Make sure scanner is connected</li>
+                    <li>Point at product barcode</li>
+                    <li>Scan will auto-detect</li>
+                    <li>Info shows for 10 seconds</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Product Info Screen (Hidden by default) -->
+        <div id="productScreen" class="product-screen" style="display: none;">
+            <div class="product-card">
+                <!-- Product Name -->
+                <div id="productDisplayName" class="product-name">Product Name</div>
+
+                <!-- Price -->
+                <div id="productDisplayPrice" class="product-price">Rs. 0.00</div>
+
+                <!-- Details Grid -->
+                <div class="product-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Category</div>
+                        <div id="productDisplayCategory" class="detail-value">-</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Weight/Size</div>
+                        <div id="productDisplayWeight" class="detail-value">-</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Stock</div>
+                        <div id="productDisplayStock" class="detail-value">-</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Barcode</div>
+                        <div id="productDisplayBarcode" class="detail-value" style="font-family: monospace;">-</div>
+                    </div>
+                </div>
+
+                <!-- Countdown Timer -->
+                <div class="countdown">
+                    <p>Returning to scan screen in:</p>
+                    <div>
+                        <span class="countdown-number" id="countdownNum">10</span>
+                        <span>seconds</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <h2 class="modal-title">Confirm Logout</h2>
+            <p class="modal-message">Are you sure you want to logout?</p>
+            <div class="modal-buttons">
+                <button id="cancelLogout" class="modal-btn modal-btn-cancel">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button id="confirmLogout" class="modal-btn modal-btn-logout">
+                    <i class="fas fa-sign-out-alt"></i> Yes, Logout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="google-sheet-api.js"></script>
+    <script>
+        // Global variables
+        let allProducts = [];
+        let countdownTimer = null;
+        let countdownSeconds = 10;
+        let currentCountdown = 10;
+        let isMobile = window.innerWidth <= 1024;
+
+        // DOM Elements
+        const barcodeInput = document.getElementById('barcodeInput');
+        const scanScreen = document.getElementById('scanScreen');
+        const productScreen = document.getElementById('productScreen');
+        const priceCheckBtn = document.getElementById('priceCheckBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        // Modal Elements
+        const logoutModal = document.getElementById('logoutModal');
+        const cancelLogoutBtn = document.getElementById('cancelLogout');
+        const confirmLogoutBtn = document.getElementById('confirmLogout');
+
+        // Product display elements
+        const productNameEl = document.getElementById('productDisplayName');
+        const productPriceEl = document.getElementById('productDisplayPrice');
+        const productCategoryEl = document.getElementById('productDisplayCategory');
+        const productWeightEl = document.getElementById('productDisplayWeight');
+        const productStockEl = document.getElementById('productDisplayStock');
+        const productBarcodeEl = document.getElementById('productDisplayBarcode');
+        const countdownNumEl = document.getElementById('countdownNum');
+
+        // Toggle sidebar for mobile
+        function toggleSidebar() {
+            sidebar.classList.toggle('show');
+            sidebarOverlay.classList.toggle('show');
+            menuToggle.classList.toggle('active');
+
+            // Change icon
+            const icon = menuToggle.querySelector('i');
+            if (sidebar.classList.contains('show')) {
+                icon.className = 'fas fa-times';
+                // Prevent body scrolling when sidebar is open
+                document.body.style.overflow = 'hidden';
+            } else {
+                icon.className = 'fas fa-bars';
+                // Restore body scrolling
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Close sidebar (for mobile)
+        function closeSidebar() {
+            if (isMobile && sidebar.classList.contains('show')) {
+                sidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+                menuToggle.classList.remove('active');
+                const icon = menuToggle.querySelector('i');
+                icon.className = 'fas fa-bars';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Check screen size on resize
+        function checkScreenSize() {
+            isMobile = window.innerWidth <= 1024;
+
+            // On larger screens, ensure sidebar is visible
+            if (!isMobile) {
+                sidebar.classList.add('show');
+                sidebarOverlay.classList.remove('show');
+                menuToggle.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            } else {
+                // On mobile, hide sidebar by default
+                sidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+                menuToggle.classList.remove('active');
+                const icon = menuToggle.querySelector('i');
+                icon.className = 'fas fa-bars';
+            }
+        }
+
+        // Load products on page load
+        async function loadProducts() {
+            try {
+                showLoader(true);
+                allProducts = await getProducts();
+                console.log(`Loaded ${allProducts.length} products`);
+
+                // Log first few products for debugging
+                console.log('Sample products:', allProducts.slice(0, 3));
+
+                // Focus on barcode input for scanning
+                barcodeInput.focus();
+
+            } catch (error) {
+                console.error('Error loading products:', error);
+                showError('Error loading products. Please refresh the page.');
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        // Handle barcode scanning
+        barcodeInput.addEventListener('input', async function (e) {
+            const barcode = e.target.value.trim();
+
+            // Clear any special characters (like enter key)
+            if (barcode.includes('\n') || barcode.includes('\r')) {
+                barcodeInput.value = barcode.replace(/[\n\r]/g, '');
+                return;
+            }
+
+            if (barcode.length < 3) return;
+
+            console.log(`Scanned barcode: "${barcode}", Length: ${barcode.length}`);
+
+            // Find product by barcode
+            const product = findProductByBarcode(barcode);
+
+            if (product) {
+                console.log('Product found:', product);
+
+                // Show product screen
+                showProductScreen(product);
+
+                // Reset input for next scan
+                barcodeInput.value = '';
+
+                // Start countdown to return to scan screen
+                startCountdown();
+
+                // Close sidebar on mobile after scanning
+                closeSidebar();
+            } else {
+                // Product not found
+                console.log('Product not found. Available barcodes:',
+                    allProducts.map(p => p.barcode).filter(Boolean).slice(0, 5));
+
+                // Show error for 2 seconds
+                showError(`Product with barcode ${barcode} not found!`);
+
+                barcodeInput.value = '';
+                barcodeInput.focus();
+            }
+        });
+
+        // Find product by barcode
+        function findProductByBarcode(scannedBarcode) {
+            // First, try exact match
+            let product = allProducts.find(p => {
+                if (!p.barcode) return false;
+
+                const productBarcode = String(p.barcode).trim();
+                const scanned = String(scannedBarcode).trim();
+
+                return productBarcode === scanned;
+            });
+
+            // If not found, try removing any non-digit characters
+            if (!product) {
+                const cleanScanned = scannedBarcode.replace(/\D/g, '');
+                const cleanScannedReverse = cleanScanned.split('').reverse().join('');
+
+                product = allProducts.find(p => {
+                    if (!p.barcode) return false;
+
+                    const productBarcode = String(p.barcode).trim();
+                    const cleanProductBarcode = productBarcode.replace(/\D/g, '');
+
+                    return cleanProductBarcode === cleanScanned ||
+                        cleanProductBarcode === cleanScannedReverse ||
+                        productBarcode.includes(cleanScanned) ||
+                        cleanScanned.includes(cleanProductBarcode);
+                });
+            }
+
+            return product;
+        }
+
+        // Show product information
+        function showProductScreen(product) {
+            // Hide scan screen, show product screen
+            scanScreen.style.display = 'none';
+            productScreen.style.display = 'flex';
+
+            // Fill product information
+            productNameEl.textContent = product.product_name || 'Unknown Product';
+            productPriceEl.textContent = `Rs. ${parseFloat(product.sale_price || 0).toFixed(2)}`;
+            productCategoryEl.textContent = product.category || '-';
+            productWeightEl.textContent = product.weight || '-';
+            productStockEl.textContent = product.quantity || '0';
+            productBarcodeEl.textContent = product.barcode || '-';
+
+            // Color code stock status
+            const quantity = parseInt(product.quantity) || 0;
+            const minQty = parseInt(product.minimum_quantity) || 10;
+
+            if (quantity === 0) {
+                productStockEl.style.color = '#e74c3c';
+                productStockEl.innerHTML = `${quantity} <span style="color: #e74c3c; font-size: 14px;">(Out of Stock)</span>`;
+            } else if (quantity < minQty) {
+                productStockEl.style.color = '#f39c12';
+                productStockEl.innerHTML = `${quantity} <span style="color: #f39c12; font-size: 14px;">(Low Stock)</span>`;
+            } else {
+                productStockEl.style.color = '#27ae60';
+                productStockEl.innerHTML = `${quantity} <span style="color: #27ae60; font-size: 14px;">(In Stock)</span>`;
+            }
+        }
+
+        // Show error message temporarily
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
+
+            // Remove existing error messages
+            const existingErrors = document.querySelectorAll('.error-message');
+            existingErrors.forEach(error => error.remove());
+
+            document.body.appendChild(errorDiv);
+
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 2000);
+        }
+
+        // Start countdown to return to scan screen
+        function startCountdown() {
+            currentCountdown = countdownSeconds;
+            countdownNumEl.textContent = currentCountdown;
+
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+            }
+
+            countdownTimer = setInterval(() => {
+                currentCountdown--;
+                countdownNumEl.textContent = currentCountdown;
+
+                if (currentCountdown <= 0) {
+                    clearInterval(countdownTimer);
+                    returnToScanScreen();
+                }
+            }, 1000);
+        }
+
+        // Return to scan screen
+        function returnToScanScreen() {
+            // Hide product screen, show scan screen
+            productScreen.style.display = 'none';
+            scanScreen.style.display = 'flex';
+
+            // Clear any existing countdown
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+            }
+
+            // Reset countdown
+            currentCountdown = countdownSeconds;
+            countdownNumEl.textContent = currentCountdown;
+
+            // Focus back on barcode input for next scan
+            barcodeInput.focus();
+            barcodeInput.value = '';
+        }
+
+        // Manual return to scan screen (if user clicks)
+        productScreen.addEventListener('click', function () {
+            returnToScanScreen();
+        });
+
+        // Price Check button click handler
+        priceCheckBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            returnToScanScreen();
+            closeSidebar();
+        });
+
+        // Logout button click handler
+        logoutBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            // Close sidebar first
+            closeSidebar();
+            // Show logout confirmation modal
+            showLogoutModal();
+        });
+
+        // Show logout confirmation modal
+        function showLogoutModal() {
+            logoutModal.style.display = 'flex';
+            // Prevent background scrolling when modal is open
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Hide logout confirmation modal
+        function hideLogoutModal() {
+            logoutModal.style.display = 'none';
+            // Restore background scrolling
+            document.body.style.overflow = 'auto';
+            barcodeInput.focus();
+        }
+
+        // Cancel logout button click handler
+        cancelLogoutBtn.addEventListener('click', function () {
+            hideLogoutModal();
+        });
+
+        // Confirm logout button click handler
+        confirmLogoutBtn.addEventListener('click', function () {
+            // Perform logout action - redirect to login page
+            window.location.href = 'index.html';
+        });
+
+        // Menu toggle click handler
+        menuToggle.addEventListener('click', function () {
+            toggleSidebar();
+        });
+
+        // Close sidebar when clicking overlay
+        sidebarOverlay.addEventListener('click', function () {
+            closeSidebar();
+        });
+
+        // Close modal when clicking outside
+        logoutModal.addEventListener('click', function (e) {
+            if (e.target === logoutModal) {
+                hideLogoutModal();
+            }
+        });
+
+        // Close sidebar when clicking a menu item (on mobile)
+        document.querySelectorAll('.sidebar-menu a').forEach(item => {
+            item.addEventListener('click', function () {
+                if (isMobile && !this.id.includes('logout')) {
+                    closeSidebar();
+                }
+            });
+        });
+
+        // Close modals and sidebar with Escape key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                if (logoutModal.style.display === 'flex') {
+                    hideLogoutModal();
+                } else if (sidebar.classList.contains('show')) {
+                    closeSidebar();
+                } else if (productScreen.style.display !== 'none') {
+                    returnToScanScreen();
+                }
+            }
+
+            // F1 key to focus on barcode input
+            if (e.key === 'F1') {
+                e.preventDefault();
+                barcodeInput.focus();
+            }
+
+            // F5 to refresh products
+            if (e.key === 'F5') {
+                e.preventDefault();
+                loadProducts();
+            }
+        });
+
+        // Show loader
+        function showLoader(show = true) {
+            let loader = document.getElementById('globalLoader');
+
+            if (!loader && show) {
+                loader = document.createElement('div');
+                loader.className = 'loader-overlay';
+                loader.id = 'globalLoader';
+                loader.innerHTML = '<div class="loader"></div>';
+                document.body.appendChild(loader);
+            } else if (loader) {
+                loader.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Check initial screen size
+            checkScreenSize();
+
+            // Load products
+            loadProducts();
+
+            // Focus on barcode input
+            barcodeInput.focus();
+
+            // Keep focus on barcode input when clicking anywhere
+            document.addEventListener('click', function (e) {
+                // Don't refocus if clicking on certain elements
+                if (!e.target.closest('.error-message') &&
+                    !e.target.closest('.modal-overlay') &&
+                    !e.target.closest('#logoutBtn') &&
+                    !e.target.closest('.menu-toggle') &&
+                    !e.target.closest('.sidebar')) {
+                    barcodeInput.focus();
+                }
+            });
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function () {
+            checkScreenSize();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inventory Management</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        /* Barcode editing field */
+        .barcode-edit-container {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .barcode-edit-container.show {
+            display: block;
+        }
+
+        .barcode-edit-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            display: block;
+        }
+
+        .barcode-edit-input {
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+
+        .duplicate-error {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .duplicate-error.show {
+            display: block;
+        }
+
+        /* Price error */
+        .price-error {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .price-error.show {
+            display: block;
+        }
+
+        /* Product List header */
+        .card-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 15px;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            margin-bottom: 10px;
+        }
+
+        /* Ensure header control buttons share same size (fix Low Stock First vs Refresh) */
+        .header-controls .btn {
+            min-width: 120px;
+            min-height: 44px;
+            padding: 10px 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Table scroll container */
+        .table-scroll-container {
+            max-height: 500px;
+            overflow-y: auto;
+            position: relative;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+
+        .table-scroll-container thead {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa;
+            z-index: 10;
+        }
+
+        /* Mobile responsive fixes */
+        @media (max-width: 768px) {
+            .card-header-flex {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .header-controls {
+                flex-wrap: wrap;
+            }
+
+            .header-controls input {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loader Overlay -->
+    <div class="loader-overlay" id="globalLoader">
+        <div class="loader"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-brand">
+                <img src="images/logo.png" alt="Hafsa Pharmacy & Mir Mart">
+            </div>
+
+            <ul class="sidebar-menu">
+                <li><a href="#" onclick="loadSection('inventory', event)" class="active"><i class="fas fa-box"></i>
+                        <span>Add Products</span></a></li>
+                <li><a href="price-view.html"><i class="fas fa-barcode"></i> <span>Price Check</span></a></li>
+                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
+            </ul>
+        </div>
+
+        <!-- Main Content - Dynamic Sections -->
+        <div class="main-content" id="mainContent">
+            <!-- Inventory Section (Default) -->
+            <div id="inventorySection">
+                <div class="header">
+                    <h1><i class="fas fa-box"></i> Inventory Management</h1>
+                    <div id="userInfo" class="user-info"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 id="formTitle">Add New Product</h2>
+                        <span id="productId" style="color: var(--success); font-weight: bold;"></span>
+                    </div>
+
+                    <form id="productForm">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="product_name" class="required">Product Name</label>
+                                <input type="text" id="product_name" class="form-control" required
+                                    placeholder="Enter product name">
+                            </div>
+
+                            <div class="form-col">
+                                <label for="category" class="required">Category</label>
+                                <input type="text" id="category" list="categoryList" class="form-control" required
+                                    placeholder="Type or select category">
+                                <datalist id="categoryList">
+                                    <option value="Grocery">
+                                    <option value="Cosmetics">
+                                    <option value="Personal Care">
+                                    <option value="Baby Care">
+                                    <option value="Dairy Products">
+                                    <option value="Bakery Items">
+                                    <option value="Beverages">
+                                    <option value="Snacks & Biscuits">
+                                    <option value="Frozen Foods">
+                                    <option value="Household Items">
+                                    <option value="Cleaning & Detergents">
+                                    <option value="Stationery">
+                                    <option value="Kitchen Items">
+                                    <option value="Plastic & Disposable Items">
+                                    <option value="Pet Care">
+                                    <option value="Health & Wellness">
+                                    <option value="Others">
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="weight" class="required">Weight/Quantity</label>
+                                <input type="text" id="weight" list="weightList" class="form-control" required
+                                    placeholder="Type or select weight">
+                                <datalist id="weightList">
+                                    <option value="50 g">
+                                    <option value="100 g">
+                                    <option value="½ Pao (125 g)">
+                                    <option value="1 Pao (250 g)">
+                                    <option value="½ KG (500 g)">
+                                    <option value="1 KG">
+                                    <option value="2 KG">
+                                    <option value="5 KG">
+                                </datalist>
+                                <span class="form-help">Examples: 750 ml, 1.5 L, 200 mg</span>
+                            </div>
+
+                            <div class="form-col">
+                                <label for="unit" class="required">Unit</label>
+                                <input type="text" id="unit" list="unitList" class="form-control" required
+                                    placeholder="Type or select unit">
+                                <datalist id="unitList">
+                                    <option value="Piece (pcs)">
+                                    <option value="Bottle">
+                                    <option value="Tube">
+                                    <option value="Pack">
+                                    <option value="Jar">
+                                    <option value="Box">
+                                    <option value="Carton">
+                                    <option value="Packet">
+                                    <option value="Dozen">
+                                </datalist>
+                                <span class="form-help">Examples: can, roll, set, pair</span>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="purchase_price" class="required">Purchase Price</label>
+                                <input type="number" id="purchase_price" class="form-control" step="0.01" required
+                                    placeholder="0.00" min="0">
+                            </div>
+
+                            <div class="form-col">
+                                <label for="sale_price" class="required">Sale Price</label>
+                                <input type="number" id="sale_price" class="form-control" step="0.01" required
+                                    placeholder="0.00" min="0">
+                                <div class="price-error" id="salePriceError">Sale price must be greater than or equal to
+                                    purchase price</div>
+                            </div>
+
+                            <div class="form-col">
+                                <label for="quantity" class="required">Initial Quantity</label>
+                                <input type="number" id="quantity" class="form-control" required placeholder="0"
+                                    min="0">
+                            </div>
+
+                            <div class="form-col">
+                                <label for="minimum_quantity" class="required">Minimum Quantity</label>
+                                <input type="number" id="minimum_quantity" class="form-control" required
+                                    placeholder="10" min="1" value="10">
+                                <span class="form-help">Low stock alert when below this</span>
+                            </div>
+                        </div>
+
+                        <!-- Barcode Edit Field (Hidden by default) -->
+                        <div id="barcodeEditContainer" class="barcode-edit-container">
+                            <label class="barcode-edit-label">Edit Barcode</label>
+                            <input type="text" id="barcodeEdit" class="form-control barcode-edit-input"
+                                placeholder="Enter new barcode">
+                            <div class="duplicate-error" id="barcodeDuplicateError">This barcode is already assigned to
+                                another product!</div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-col">
+                                <button type="submit" class="btn btn-primary" id="submitBtn">
+                                    <i class="fas fa-save"></i> <span id="submitBtnText">Save Product</span>
+                                </button>
+                                <button type="button" class="btn btn-warning" onclick="resetForm(true)" id="resetBtn">
+                                    <i class="fas fa-redo"></i> Reset
+                                </button>
+                                <input type="hidden" id="isEditMode" value="false">
+                                <input type="hidden" id="editProductId" value="">
+                                <input type="hidden" id="currentBarcode" value="">
+                            </div>
+                        </div>
+                    </form>
+
+                    <div id="statusMessage" style="display: none; margin-top: 15px;"></div>
+                </div>
+
+                <!-- Barcode Section -->
+                <div class="barcode-container card" id="barcodeSection" style="display: none;">
+                    <div class="card-header">
+                        <h2><i class="fas fa-barcode"></i> Generated Barcode</h2>
+                        <div id="barcodeNumber"
+                            style="font-family: monospace; font-size: 18px; background: #f8f9fa; padding: 5px 10px; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <div class="barcode-layout">
+                        <div class="barcode-preview">
+                            <svg id="barcode"></svg>
+                            <div id="barcodeText"
+                                style="margin-top: 5px; font-family: monospace; font-size: 14px; text-align: center; font-weight: bold; letter-spacing: 1px;">
+                            </div>
+                            <div class="barcode-info-row">
+                                <div id="productNameDisplay" class="barcode-info-item"></div>
+                                <div id="productPriceDisplay" class="barcode-info-item"
+                                    style="color: #27ae60; font-weight: bold;"></div>
+                                <div id="productWeightDisplay" class="barcode-info-item"></div>
+                            </div>
+                        </div>
+
+                        <div class="barcode-actions">
+                            <button class="btn btn-success" onclick="downloadBarcode()" id="downloadBtn">
+                                <i class="fas fa-download"></i> Download PNG
+                            </button>
+                            <button class="btn btn-primary" onclick="printBarcode()" id="printBtn">
+                                <i class="fas fa-print"></i> Print Barcode
+                            </button>
+                            <div style="margin-top: 10px;">
+                                <label style="font-size: 12px; display: block; margin-bottom: 5px;">Copies to
+                                    print:</label>
+                                <input type="number" id="printCount" class="form-control" value="1" min="1" max="100"
+                                    style="width: 100%;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product List -->
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h2><i class="fas fa-list"></i> Product List</h2>
+                        <div class="header-controls">
+                            <input type="text" id="searchProductList" class="form-control"
+                                placeholder="Search by ID, Name, Category, Barcode..." style="min-width: 200px;">
+                            <button class="btn btn-primary" onclick="refreshProductList()" id="refreshBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-warning" onclick="toggleLowStockSort()" id="lowStockBtn"
+                                title="Show low stock items first">
+                                <i class="fas fa-exclamation-triangle"></i> Low Stock First
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-scroll-container">
+                        <table class="table" id="productListTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>
+                                        Category
+                                        <span class="category-filter-container">
+                                            <button class="category-filter-btn" onclick="toggleCategoryFilter()">
+                                                <i class="fas fa-filter"></i>
+                                            </button>
+                                            <div id="categoryFilterDropdown" class="category-filter-dropdown">
+                                                <!-- Category filters will be added here -->
+                                            </div>
+                                        </span>
+                                    </th>
+                                    <th>Purchase Price</th>
+                                    <th>Sale Price</th>
+                                    <th>Quantity</th>
+                                    <th>Min Qty</th>
+                                    <th>Barcode</th>
+                                    <th>Weight/Quantity</th>
+                                    <th>Unit</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productTableBody">
+                                <!-- Products will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; width: 400px; max-width: 90%;">
+            <h3 style="color: #e74c3c; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> Confirm Delete
+            </h3>
+            <p id="deleteMessage">Are you sure you want to delete this product?</p>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="confirmDelete()" class="btn btn-danger" id="deleteConfirmBtn" style="flex: 1;">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+                <button onclick="cancelDelete()" class="btn btn-secondary" id="deleteCancelBtn" style="flex: 1;">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="google-sheet-api.js"></script>
+    <script>
+        // Global variables
+        let currentBarcode = '';
+        let currentProductId = '';
+        let currentProductName = '';
+        let currentProductPrice = '';
+        let currentProductWeight = '';
+        let productToDelete = null;
+        let allProducts = [];
+        let isLowStockSort = false;
+        let isEditing = false;
+        let selectedCategoryFilter = '';
+
+        // Check access
+        if (!checkPageAccess('inventory')) {
+            window.location.href = 'index.html';
+        }
+
+        // Navigation function
+        function loadSection(section, event = null) {
+            if (section === 'price-view') {
+                window.location.href = 'price-view.html';
+                return;
+            }
+
+            // Update active menu
+            if (event) {
+                document.querySelectorAll('.sidebar-menu a').forEach(link => link.classList.remove('active'));
+                event.target.closest('a').classList.add('active');
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', function (e) {
+            e.preventDefault();
+            logout();
+        });
+
+        // Show loader with timeout
+        let loaderTimeout;
+        function showLoader(show = true, delay = 100) {
+            const loader = document.getElementById('globalLoader');
+            if (!loader) return;
+
+            if (show) {
+                clearTimeout(loaderTimeout);
+                loader.style.display = 'flex';
+            } else {
+                loader.style.display = 'none';
+            }
+        }
+
+        // Show button loader
+        function showButtonLoader(buttonId, isLoading, text = '') {
+            const btn = document.getElementById(buttonId);
+            if (!btn) return;
+
+            if (isLoading) {
+                btn.classList.add('btn-loading');
+                btn.disabled = true;
+            } else {
+                btn.classList.remove('btn-loading');
+                btn.disabled = false;
+                if (text) {
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        btn.innerHTML = icon.outerHTML + ' ' + text;
+                    } else {
+                        btn.innerHTML = text;
+                    }
+                }
+            }
+        }
+
+        // Check for duplicate product
+        function checkForDuplicate(productData, excludeProductId = '') {
+            const name = productData.product_name.trim().toLowerCase();
+            const weight = productData.weight.trim().toLowerCase();
+            const unit = productData.unit.trim().toLowerCase();
+
+            return allProducts.some(product => {
+                // Skip the product being edited
+                if (excludeProductId && product.product_id === excludeProductId) {
+                    return false;
+                }
+
+                const existingName = (product.product_name || '').trim().toLowerCase();
+                const existingWeight = (product.weight || '').trim().toLowerCase();
+                const existingUnit = (product.unit || '').trim().toLowerCase();
+
+                return existingName === name &&
+                    existingWeight === weight &&
+                    existingUnit === unit;
+            });
+        }
+
+        // Check for duplicate barcode in local cache
+        function checkDuplicateBarcode(barcode, excludeProductId = '') {
+            if (!barcode) return false;
+
+            return allProducts.some(product => {
+                if (excludeProductId && product.product_id === excludeProductId) {
+                    return false;
+                }
+                return product.barcode === barcode;
+            });
+        }
+
+        // Check barcode duplicate on backend
+        async function checkBarcodeDuplicateBackend(barcode, excludeProductId = '') {
+            try {
+                const params = new URLSearchParams({
+                    action: 'checkDuplicateBarcode',
+                    barcode: barcode,
+                    exclude_product_id: excludeProductId
+                });
+
+                const url = `${API_URL}?${params}`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    signal: controller.signal,
+                    cache: 'no-cache'
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error checking barcode duplicate:', error);
+                return {
+                    success: false,
+                    isDuplicate: false,
+                    error: 'Network error checking barcode'
+                };
+            }
+        }
+
+        // Enhanced barcode duplicate check with backend validation
+        document.getElementById('barcodeEdit').addEventListener('input', async function () {
+            const newBarcode = this.value.trim();
+            const currentBarcode = document.getElementById('currentBarcode').value;
+            const productId = document.getElementById('editProductId').value;
+            const errorElement = document.getElementById('barcodeDuplicateError');
+
+            // Clear previous error and enable submit by default
+            errorElement.classList.remove('show');
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) submitBtn.disabled = false;
+
+            if (newBarcode && newBarcode !== currentBarcode) {
+                // First check local cache for quick feedback
+                if (checkDuplicateBarcode(newBarcode, productId)) {
+                    errorElement.textContent = 'This barcode is already assigned to another product in local cache!';
+                    errorElement.classList.add('show');
+                    return;
+                }
+
+                // Then check backend (Google Sheets) for accurate validation
+                try {
+                    const result = await checkBarcodeDuplicateBackend(newBarcode, productId);
+
+                    if (result.success && result.isDuplicate) {
+                        errorElement.textContent = `This barcode already exists! ${result.message || 'Assigned to another product.'}`;
+                        errorElement.classList.add('show');
+                        if (submitBtn) submitBtn.disabled = true;
+                    } else if (result.error) {
+                        errorElement.textContent = 'Error checking barcode. Please try again.';
+                        errorElement.classList.add('show');
+                        if (submitBtn) submitBtn.disabled = true;
+                    } else {
+                        errorElement.classList.remove('show');
+                        if (submitBtn) submitBtn.disabled = false;
+                    }
+                } catch (error) {
+                    errorElement.textContent = 'Error checking barcode. Please try again.';
+                    errorElement.classList.add('show');
+                }
+            } else {
+                errorElement.classList.remove('show');
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+
+        // Price validation for sale price
+        document.getElementById('sale_price').addEventListener('input', function () {
+            const purchasePrice = parseFloat(document.getElementById('purchase_price').value) || 0;
+            const salePrice = parseFloat(this.value) || 0;
+            const errorElement = document.getElementById('salePriceError');
+
+            if (salePrice < purchasePrice) {
+                errorElement.classList.add('show');
+            } else {
+                errorElement.classList.remove('show');
+            }
+        });
+
+        // Form submission - FIXED with duplicate checking
+        document.getElementById('productForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            showButtonLoader('submitBtn', true);
+
+            // Get values from input fields
+            const productData = {
+                product_name: document.getElementById('product_name').value.trim(),
+                category: document.getElementById('category').value.trim(),
+                purchase_price: document.getElementById('purchase_price').value,
+                sale_price: document.getElementById('sale_price').value,
+                quantity: document.getElementById('quantity').value,
+                minimum_quantity: document.getElementById('minimum_quantity').value,
+                weight: document.getElementById('weight').value.trim(),
+                unit: document.getElementById('unit').value.trim()
+            };
+
+            // Check sale price validation before submission
+            const purchasePrice = parseFloat(productData.purchase_price) || 0;
+            const salePrice = parseFloat(productData.sale_price) || 0;
+            if (salePrice < purchasePrice) {
+                document.getElementById('salePriceError').classList.add('show');
+                showButtonLoader('submitBtn', false, isEditing ? 'Update Product' : 'Save Product');
+                return;
+            }
+
+            // Get barcode if editing
+            let newBarcode = '';
+            if (isEditing) {
+                newBarcode = document.getElementById('barcodeEdit').value.trim();
+                const currentBarcodeVal = document.getElementById('currentBarcode').value;
+
+                // If barcode was changed, check for duplicates
+                if (newBarcode && newBarcode !== currentBarcodeVal) {
+                    if (checkDuplicateBarcode(newBarcode, document.getElementById('editProductId').value)) {
+                        document.getElementById('barcodeDuplicateError').classList.add('show');
+                        showButtonLoader('submitBtn', false, isEditing ? 'Update Product' : 'Save Product');
+                        return;
+                    }
+                }
+                productData.barcode = newBarcode || currentBarcodeVal;
+            }
+
+            // Validate data
+            let errors = [];
+            if (!productData.product_name) errors.push('Product name');
+            if (!productData.category) errors.push('Category');
+            if (!productData.purchase_price || parseFloat(productData.purchase_price) <= 0) errors.push('Purchase price');
+            if (!productData.sale_price || parseFloat(productData.sale_price) <= 0) errors.push('Sale price');
+            if (!productData.quantity || parseInt(productData.quantity) < 0) errors.push('Quantity');
+            if (!productData.weight) errors.push('Weight/Quantity');
+            if (!productData.unit) errors.push('Unit');
+
+            if (errors.length > 0) {
+                showStatus('❌ Please fill all required fields: ' + errors.join(', '), 'error');
+                showButtonLoader('submitBtn', false, isEditing ? 'Update Product' : 'Save Product');
+                return;
+            }
+
+            // Check for duplicate product (only for new products)
+            if (!isEditing && checkForDuplicate(productData)) {
+                showStatus('❌ Product with same name, weight and unit already exists!', 'error');
+                showButtonLoader('submitBtn', false, 'Save Product');
+                return;
+            }
+
+            try {
+                showStatus('🔄 Saving product...', 'info');
+
+                let result;
+                if (isEditing) {
+                    productData.product_id = document.getElementById('editProductId').value;
+                    result = await updateProductInSheet(productData);
+
+                    // Handle update response
+                    if (result && result.success) {
+                        showStatus('✅ Product updated successfully!', 'success');
+
+                        // Update barcode display if barcode was changed
+                        if (newBarcode && newBarcode !== document.getElementById('currentBarcode').value) {
+                            currentBarcode = newBarcode;
+                            currentProductName = productData.product_name;
+                            currentProductPrice = productData.sale_price;
+                            currentProductWeight = productData.weight;
+
+                            // Update barcode section
+                            document.getElementById('barcodeNumber').textContent = `Barcode: ${newBarcode}`;
+                            document.getElementById('barcodeText').textContent = newBarcode;
+                            document.getElementById('productNameDisplay').textContent = productData.product_name;
+                            document.getElementById('productPriceDisplay').textContent = `Rs. ${parseFloat(productData.sale_price).toFixed(2)}`;
+                            document.getElementById('productWeightDisplay').textContent = productData.weight;
+
+                            // Regenerate barcode image
+                            generateBarcodeImage(newBarcode);
+                        }
+
+                        refreshProductList();
+
+                        // Reset form after successful update
+                        setTimeout(() => {
+                            resetForm();
+                        }, 500);
+
+                    } else if (result && result.barcodeDuplicate) {
+                        // Show barcode duplicate error but keep form in edit mode
+                        document.getElementById('barcodeDuplicateError').textContent = result.message || 'Barcode already exists!';
+                        document.getElementById('barcodeDuplicateError').classList.add('show');
+                        const submitBtn = document.getElementById('submitBtn');
+                        if (submitBtn) submitBtn.disabled = true;
+                        showStatus('❌ ' + (result.error || result.message || 'Barcode already exists. Please use a different barcode.'), 'error');
+
+                        // Don't reset the form here - let user fix the barcode or click Reset
+                        // Scroll to barcode error
+                        setTimeout(() => {
+                            document.getElementById('barcodeEdit').focus();
+                            document.getElementById('barcodeEditContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                    } else {
+                        showStatus('❌ Error: ' + (result?.error || result?.message || 'Unknown error'), 'error');
+                    }
+                } else {
+                    result = await addProductToSheet(productData);
+
+                    if (result && result.success) {
+                        showStatus('✅ Product added successfully!', 'success');
+
+                        currentBarcode = result.barcode;
+                        currentProductId = result.productId;
+                        currentProductName = productData.product_name;
+                        currentProductPrice = productData.sale_price;
+                        currentProductWeight = productData.weight;
+
+                        // Display barcode
+                        document.getElementById('barcodeNumber').textContent = `Barcode: ${result.barcode}`;
+                        document.getElementById('productId').textContent = `Product ID: ${result.productId}`;
+
+                        // Generate barcode image
+                        generateBarcodeImage(result.barcode);
+
+                        document.getElementById('barcodeText').textContent = result.barcode;
+                        document.getElementById('productNameDisplay').textContent = productData.product_name;
+                        document.getElementById('productPriceDisplay').textContent = `Rs. ${parseFloat(productData.sale_price).toFixed(2)}`;
+                        document.getElementById('productWeightDisplay').textContent = productData.weight;
+                        document.getElementById('barcodeSection').style.display = 'block';
+
+                        // Add product to table
+                        addProductToTable({
+                            product_id: result.productId,
+                            product_name: productData.product_name,
+                            category: productData.category,
+                            purchase_price: productData.purchase_price,
+                            sale_price: productData.sale_price,
+                            quantity: productData.quantity,
+                            minimum_quantity: productData.minimum_quantity,
+                            weight: productData.weight,
+                            unit: productData.unit,
+                            barcode: result.barcode
+                        });
+
+                        // Scroll to barcode section
+                        document.getElementById('barcodeSection').scrollIntoView({ behavior: 'smooth' });
+
+                        // Reset form after successful addition
+                        setTimeout(() => {
+                            resetForm();
+                        }, 500);
+
+                    } else if (result && result.rowLimit) {
+                        // Handle row limit error
+                        showStatus('❌ Sheet is full! ' + (result.message || 'Please add more rows in Google Sheets.'), 'error');
+                    } else {
+                        showStatus('❌ Error: ' + (result?.error || result?.message || 'Unknown error'), 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Submission error:', error);
+                if (isEditing && !error.toString().includes('NetworkError')) {
+                    showStatus('✅ Product may have been updated. Please refresh to check.', 'info');
+                    refreshProductList();
+                    resetForm();
+                } else {
+                    showStatus('❌ Network error. Please check your connection.', 'error');
+                }
+            } finally {
+                showButtonLoader('submitBtn', false, isEditing ? 'Update Product' : 'Save Product');
+            }
+        });
+
+        // Add product to table
+        function addProductToTable(product) {
+            const tbody = document.getElementById('productTableBody');
+
+            // Remove existing row if editing
+            if (isEditing) {
+                const rows = tbody.querySelectorAll('tr');
+                rows.forEach(row => {
+                    if (row.cells[0].textContent === product.product_id) {
+                        row.remove();
+                    }
+                });
+            }
+
+            // Add at the beginning
+            const newRow = tbody.insertRow(0);
+
+            // Check for low stock
+            const quantity = parseInt(product.quantity) || 0;
+            const minQty = parseInt(product.minimum_quantity) || 10;
+            const isLowStock = quantity < minQty;
+
+            const categoryColor = getCategoryColor(product.category);
+
+            newRow.innerHTML = `
+            <td><strong>${product.product_id}</strong></td>
+            <td>${product.product_name}</td>
+            <td><span class="category-badge" style="background: ${categoryColor}">${product.category || 'N/A'}</span></td>
+            <td>Rs. ${(parseFloat(product.purchase_price) || 0).toFixed(2)}</td>
+            <td><strong style="color: #27ae60;">Rs. ${(parseFloat(product.sale_price) || 0).toFixed(2)}</strong></td>
+            <td>
+                <span class="${isLowStock ? 'low-stock' : ''}" style="${isLowStock ? 'color: #e74c3c; font-weight: bold;' : ''}">
+                    ${quantity} ${isLowStock ? ' ⚠️' : ''}
+                </span>
+            </td>
+            <td>${minQty}</td>
+            <td><code style="font-family: monospace; background: #f8f9fa; padding: 2px 5px; border-radius: 3px;">${product.barcode}</code></td>
+            <td>${product.weight || '-'}</td>
+            <td>${product.unit || '-'}</td>
+            <td class="action-buttons">
+                <button onclick="editProduct('${product.product_id}')" class="btn btn-sm btn-primary" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="showDeleteConfirmation('${product.product_id}', '${product.product_name}')" class="btn btn-sm btn-danger" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+
+            updateCategoryFilter();
+
+            if (isLowStockSort) sortByLowStock();
+            if (selectedCategoryFilter) applyCategoryFilter();
+        }
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.innerHTML = message;
+            statusDiv.className = 'alert';
+
+            switch (type) {
+                case 'success':
+                    statusDiv.classList.add('alert-success');
+                    break;
+                case 'error':
+                    statusDiv.classList.add('alert-danger');
+                    break;
+                case 'info':
+                    statusDiv.classList.add('alert-info');
+                    break;
+            }
+
+            statusDiv.style.display = 'block';
+
+            setTimeout(() => {
+                if (statusDiv.style.display === 'block') {
+                    statusDiv.style.display = 'none';
+                }
+            }, 5000);
+        }
+
+        // Generate barcode image
+        function generateBarcodeImage(barcode) {
+            try {
+                // Clear existing barcode
+                document.getElementById('barcode').innerHTML = '';
+
+                JsBarcode("#barcode", barcode, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 2,
+                    height: 60,
+                    displayValue: false,
+                    margin: 5
+                });
+            } catch (error) {
+                console.error('❌ Barcode generation error:', error);
+                showStatus('❌ Error generating barcode', 'error');
+            }
+        }
+
+        // Download barcode
+        async function downloadBarcode() {
+            if (!currentBarcode) {
+                showStatus('❌ Please generate a barcode first', 'error');
+                return;
+            }
+
+            showButtonLoader('downloadBtn', true);
+
+            try {
+                const svg = document.getElementById('barcode');
+                const serializer = new XMLSerializer();
+                const source = serializer.serializeToString(svg);
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+
+                img.onload = function () {
+                    canvas.width = 450;
+                    canvas.height = 295;
+
+                    ctx.drawImage(img, 25, 25, 400, 150);
+
+                    ctx.font = 'bold 28px Arial';
+                    ctx.fillStyle = '#000';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(currentProductName, canvas.width / 2, 200);
+
+                    ctx.font = '22px Arial';
+                    ctx.fillStyle = '#27ae60';
+                    ctx.fillText(`Rs. ${parseFloat(currentProductPrice || 0).toFixed(2)}`, canvas.width / 3, 240);
+
+                    ctx.fillStyle = '#666';
+                    ctx.fillText(currentProductWeight, canvas.width * 2 / 3, 240);
+
+                    ctx.font = '20px monospace';
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(currentBarcode, canvas.width / 2, 280);
+
+                    const link = document.createElement('a');
+                    link.download = `barcode_${currentProductName.replace(/[^a-z0-9]/gi, '_')}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    showStatus('✅ Barcode downloaded successfully!', 'success');
+                };
+
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(source)));
+            } catch (error) {
+                console.error('❌ Download error:', error);
+                showStatus('❌ Error downloading barcode', 'error');
+            } finally {
+                setTimeout(() => showButtonLoader('downloadBtn', false, 'Download PNG'), 1000);
+            }
+        }
+
+        // Print barcode
+        function printBarcode() {
+            if (!currentBarcode) {
+                showStatus('❌ Please generate a barcode first', 'error');
+                return;
+            }
+
+            const printCount = parseInt(document.getElementById('printCount').value) || 1;
+
+            const barcodeSVG = document.getElementById('barcode').cloneNode(true);
+            barcodeSVG.setAttribute('width', '400');
+            barcodeSVG.setAttribute('height', '100');
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(barcodeSVG);
+            const svgData = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+
+            const printWindow = window.open('', '_blank');
+
+            let barcodesHTML = '';
+
+            barcodesHTML += '<div style="width: 100%; margin: 0 auto; text-align: center;">';
+
+            for (let i = 0; i < printCount; i++) {
+                barcodesHTML += `
+            <div style="width: 58mm; margin: 0 auto 5mm auto; padding: 2mm; border: 0.5pt solid #ddd; page-break-inside: avoid;">
+                <div style="text-align: center; margin-bottom: 2mm;">
+                    <img src="${svgData}" style="width: 100%; height: 25mm; object-fit: contain;">
+                </div>
+                
+                <div style="font-family: monospace; font-size: 14px; font-weight: bold; margin: 2mm 0; letter-spacing: 1px;">
+                    ${currentBarcode}
+                </div>
+                
+                <div style="font-size: 12px; font-weight: bold; margin: 1mm 0; word-wrap: break-word;">
+                    ${currentProductName}
+                </div>
+                
+                <div style="font-size: 11px; display: flex; justify-content: space-between; margin-top: 2mm; padding: 0 2mm;">
+                    <span style="color: #27ae60; font-weight: bold;">
+                        Rs. ${parseFloat(currentProductPrice || 0).toFixed(2)}
+                    </span>
+                    <span style="font-weight: bold;">
+                        ${currentProductWeight}
+                    </span>
+                </div>
+            </div>
+        `;
+            }
+
+            barcodesHTML += '</div>';
+
+            printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Print Barcodes - ${currentProductName}</title>
+                    <style>
+                        @media print {
+                            @page {
+                                margin: 0;
+                                size: 58mm 297mm;
+                                size: auto;
+                            }
+                            body { 
+                                margin: 0; 
+                                padding: 0; 
+                                font-family: Arial, sans-serif;
+                                width: 58mm;
+                            }
+                            .no-print { display: none; }
+                            .barcode-item {
+                                width: 58mm !important;
+                                margin: 0 auto !important;
+                                border: none !important;
+                                page-break-after: always;
+                            }
+                        }
+                        @media screen {
+                            body { 
+                                padding: 20px; 
+                                font-family: Arial, sans-serif;
+                            }
+                            .print-controls {
+                                text-align: center;
+                                margin-bottom: 20px;
+                                padding: 15px;
+                                background: #f8f9fa;
+                                border-radius: 5px;
+                            }
+                            .barcode-item {
+                                width: 58mm;
+                                margin: 0 auto 20px auto;
+                                border: 1px solid #ddd;
+                                padding: 5mm;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-controls no-print">
+                        <h3>Print Preview - ${printCount} barcode(s)</h3>
+                        <p>${currentProductName} | ${currentBarcode}</p>
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+                            <i class="fas fa-print"></i> Print Now
+                        </button>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                        <div style="margin-top: 10px; color: #666; font-size: 12px;">
+                            <p>Paper size: 58mm x 297mm (thermal paper)</p>
+                            <p>Layout: Single column, centered</p>
+                        </div>
+                    </div>
+                    ${barcodesHTML}
+                    <script>
+                        window.onload = function() { 
+                            setTimeout(() => { 
+                                window.print(); 
+                                setTimeout(() => { window.close(); }, 1000);
+                            }, 500);
+                        }
+                    <\/script>
+                </body>
+            </html>
+        `);
+            printWindow.document.close();
+        }
+
+        // Get category color
+        function getCategoryColor(category) {
+            const colors = {
+                'Grocery': '#4CAF50',
+                'Cosmetics': '#E91E63',
+                'Personal Care': '#2196F3',
+                'Baby Care': '#FF9800',
+                'Dairy Products': '#795548',
+                'Bakery Items': '#FF5722',
+                'Beverages': '#009688',
+                'Snacks & Biscuits': '#9C27B0',
+                'Frozen Foods': '#00BCD4',
+                'Household Items': '#607D8B',
+                'Cleaning & Detergents': '#3F51B5',
+                'Stationery': '#FFC107',
+                'Kitchen Items': '#8BC34A',
+                'Plastic & Disposable Items': '#9E9E9E',
+                'Pet Care': '#795548',
+                'Health & Wellness': '#FF4081',
+                'Others': '#9C27B0'
+            };
+            return colors[category] || '#666';
+        }
+
+        // Load product list
+        async function loadProductList() {
+            showLoader(true);
+            showButtonLoader('refreshBtn', true);
+
+            try {
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                const products = await getProducts();
+                allProducts = products;
+
+                const tbody = document.getElementById('productTableBody');
+
+                if (!products || products.length === 0) {
+                    tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: #999;">
+                            <i class="fas fa-box-open fa-3x"></i>
+                            <p>No products found. Add your first product!</p>
+                        </td>
+                    </tr>
+                `;
+                    updateCategoryFilter();
+                    return;
+                }
+
+                tbody.innerHTML = '';
+
+                let sortedProducts = [...products];
+                if (isLowStockSort) {
+                    sortedProducts.sort((a, b) => {
+                        const aQty = parseInt(a.quantity) || 0;
+                        const aMin = parseInt(a.minimum_quantity) || 10;
+                        const bQty = parseInt(b.quantity) || 0;
+                        const bMin = parseInt(b.minimum_quantity) || 10;
+                        const aIsLow = aQty < aMin;
+                        const bIsLow = bQty < bMin;
+
+                        if (aIsLow && !bIsLow) return -1;
+                        if (!aIsLow && bIsLow) return 1;
+                        return 0;
+                    });
+                } else {
+                    sortedProducts.sort((a, b) => {
+                        const aId = a.product_id || '';
+                        const bId = b.product_id || '';
+                        return aId.localeCompare(bId);
+                    });
+                }
+
+                sortedProducts.forEach(product => {
+                    const row = tbody.insertRow();
+                    const quantity = parseInt(product.quantity) || 0;
+                    const minQty = parseInt(product.minimum_quantity) || 10;
+                    const isLowStock = quantity < minQty;
+                    const categoryColor = getCategoryColor(product.category);
+
+                    row.innerHTML = `
+                    <td><strong>${product.product_id || 'N/A'}</strong></td>
+                    <td>${product.product_name || 'N/A'}</td>
+                    <td><span class="category-badge" style="background: ${categoryColor}">${product.category || 'N/A'}</span></td>
+                    <td>Rs. ${(parseFloat(product.purchase_price) || 0).toFixed(2)}</td>
+                    <td><strong style="color: #27ae60;">Rs. ${(parseFloat(product.sale_price) || 0).toFixed(2)}</strong></td>
+                    <td>
+                        <span class="${isLowStock ? 'low-stock' : ''}" style="${isLowStock ? 'color: #e74c3c; font-weight: bold;' : ''}">
+                            ${quantity} ${isLowStock ? ' ⚠️' : ''}
+                        </span>
+                    </td>
+                    <td>${minQty}</td>
+                    <td><code style="font-family: monospace; background: #f8f9fa; padding: 2px 5px; border-radius: 3px;">${product.barcode || 'N/A'}</code></td>
+                    <td>${product.weight || '-'}</td>
+                    <td>${product.unit || '-'}</td>
+                    <td class="action-buttons">
+                        <button onclick="editProduct('${product.product_id}')" class="btn btn-sm btn-primary" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="showDeleteConfirmation('${product.product_id}', '${product.product_name}')" class="btn btn-sm btn-danger" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                });
+
+                updateCategoryFilter();
+
+                if (selectedCategoryFilter) applyCategoryFilter();
+
+            } catch (error) {
+                console.error('❌ Error loading products:', error);
+                const tbody = document.getElementById('productTableBody');
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" style="text-align: center; padding: 40px; color: #e74c3c;">
+                        <i class="fas fa-exclamation-triangle fa-3x"></i>
+                        <p>Error loading products</p>
+                        <button onclick="loadProductList()" class="btn btn-warning">
+                            <i class="fas fa-redo"></i> Try Again
+                        </button>
+                    </td>
+                </tr>
+            `;
+            } finally {
+                showLoader(false);
+                showButtonLoader('refreshBtn', false, 'Refresh');
+            }
+        }
+
+        // Update category filter dropdown
+        function updateCategoryFilter() {
+            const filterDropdown = document.getElementById('categoryFilterDropdown');
+            if (!allProducts || allProducts.length === 0) {
+                filterDropdown.innerHTML = '<div class="category-filter-item">No categories found</div>';
+                return;
+            }
+
+            const categoryCounts = {};
+            allProducts.forEach(product => {
+                const category = product.category || 'Uncategorized';
+                categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+            });
+
+            const sortedCategories = Object.keys(categoryCounts).sort((a, b) => {
+                return categoryCounts[b] - categoryCounts[a];
+            });
+
+            let filterHTML = `
+            <div class="category-filter-item ${!selectedCategoryFilter ? 'active' : ''}" onclick="filterByCategory('')">
+                <span>All Categories</span>
+                <span class="category-filter-count">${allProducts.length}</span>
+            </div>
+        `;
+
+            sortedCategories.forEach(category => {
+                const count = categoryCounts[category];
+                const isActive = selectedCategoryFilter === category;
+                filterHTML += `
+                <div class="category-filter-item ${isActive ? 'active' : ''}" onclick="filterByCategory('${category}')">
+                    <span>${category}</span>
+                    <span class="category-filter-count">${count}</span>
+                </div>
+            `;
+            });
+
+            filterHTML += `
+            <div class="category-filter-clear" onclick="clearCategoryFilter()">
+                Clear Filter
+            </div>
+        `;
+
+            filterDropdown.innerHTML = filterHTML;
+        }
+
+        // Toggle category filter dropdown
+        function toggleCategoryFilter() {
+            const dropdown = document.getElementById('categoryFilterDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Filter by category
+        function filterByCategory(category) {
+            selectedCategoryFilter = category;
+            const dropdown = document.getElementById('categoryFilterDropdown');
+            dropdown.classList.remove('show');
+
+            const filterItems = dropdown.querySelectorAll('.category-filter-item');
+            filterItems.forEach(item => {
+                item.classList.remove('active');
+                if (category === '' && item.textContent.includes('All Categories')) {
+                    item.classList.add('active');
+                } else if (item.textContent.includes(category)) {
+                    item.classList.add('active');
+                }
+            });
+
+            applyCategoryFilter();
+        }
+
+        // Apply category filter to table
+        function applyCategoryFilter() {
+            const rows = document.querySelectorAll('#productTableBody tr');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                if (!selectedCategoryFilter) {
+                    row.style.display = '';
+                    visibleCount++;
+                    return;
+                }
+
+                const categoryCell = row.cells[2];
+                if (categoryCell) {
+                    const categoryBadge = categoryCell.querySelector('.category-badge');
+                    const categoryText = categoryBadge ? categoryBadge.textContent.trim() : categoryCell.textContent.trim();
+
+                    if (categoryText === selectedCategoryFilter) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+
+            if (visibleCount === 0 && selectedCategoryFilter) {
+                const tbody = document.getElementById('productTableBody');
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" style="text-align: center; padding: 40px; color: #999;">
+                        <i class="fas fa-search fa-3x"></i>
+                        <p>No products found in category: ${selectedCategoryFilter}</p>
+                        <button onclick="clearCategoryFilter()" class="btn btn-primary" style="margin-top: 10px;">
+                            <i class="fas fa-times"></i> Clear Filter
+                        </button>
+                    </td>
+                </tr>
+            `;
+            }
+        }
+
+        // Clear category filter
+        function clearCategoryFilter() {
+            selectedCategoryFilter = '';
+            const dropdown = document.getElementById('categoryFilterDropdown');
+            dropdown.classList.remove('show');
+
+            const filterItems = dropdown.querySelectorAll('.category-filter-item');
+            filterItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.textContent.includes('All Categories')) {
+                    item.classList.add('active');
+                }
+            });
+
+            const rows = document.querySelectorAll('#productTableBody tr');
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+        }
+
+        // Toggle low stock sort
+        function toggleLowStockSort() {
+            isLowStockSort = !isLowStockSort;
+            const btn = document.getElementById('lowStockBtn');
+
+            if (isLowStockSort) {
+                btn.classList.add('btn-danger');
+                btn.classList.remove('btn-warning');
+                btn.innerHTML = '<i class="fas fa-sort-amount-down"></i> Original Order';
+                sortByLowStock();
+            } else {
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-warning');
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Low Stock First';
+                loadProductList();
+            }
+        }
+
+        // Sort by low stock
+        function sortByLowStock() {
+            const tbody = document.getElementById('productTableBody');
+            const rows = Array.from(tbody.rows);
+
+            rows.sort((a, b) => {
+                const aQty = parseInt(a.cells[5].textContent) || 0;
+                const bQty = parseInt(b.cells[5].textContent) || 0;
+                const aMin = parseInt(a.cells[6].textContent) || 10;
+                const bMin = parseInt(b.cells[6].textContent) || 10;
+                const aIsLow = aQty < aMin;
+                const bIsLow = bQty < bMin;
+
+                if (aIsLow && !bIsLow) return -1;
+                if (!aIsLow && bIsLow) return 1;
+                return 0;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Refresh product list
+        function refreshProductList() {
+            isLowStockSort = false;
+            selectedCategoryFilter = '';
+            const btn = document.getElementById('lowStockBtn');
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-warning');
+            btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Low Stock First';
+            loadProductList();
+        }
+
+        // Edit product
+        async function editProduct(productId) {
+            showLoader(true);
+
+            try {
+                // Clear any previous barcode error
+                document.getElementById('barcodeDuplicateError').classList.remove('show');
+
+                // Force refresh products to get latest data
+                const products = await getProducts(true);
+                const product = products.find(p => p.product_id === productId);
+
+                if (product) {
+                    isEditing = true;
+                    currentBarcode = product.barcode;
+                    currentProductId = productId;
+                    currentProductName = product.product_name;
+                    currentProductPrice = product.sale_price;
+                    currentProductWeight = product.weight || '';
+
+                    // Fill form with product data
+                    document.getElementById('product_name').value = product.product_name || '';
+                    document.getElementById('category').value = product.category || '';
+                    document.getElementById('purchase_price').value = parseFloat(product.purchase_price) || 0;
+                    document.getElementById('sale_price').value = parseFloat(product.sale_price) || 0;
+                    document.getElementById('quantity').value = parseInt(product.quantity) || 0;
+                    document.getElementById('minimum_quantity').value = parseInt(product.minimum_quantity) || 10;
+                    document.getElementById('weight').value = product.weight || '';
+                    document.getElementById('unit').value = product.unit || '';
+
+                    // Set edit mode
+                    document.getElementById('editProductId').value = productId;
+                    document.getElementById('currentBarcode').value = product.barcode;
+                    document.getElementById('isEditMode').value = 'true';
+                    document.getElementById('formTitle').textContent = 'Edit Product';
+                    document.getElementById('submitBtnText').textContent = 'Update Product';
+
+                    // Show barcode edit field
+                    document.getElementById('barcodeEditContainer').classList.add('show');
+                    document.getElementById('barcodeEdit').value = product.barcode || '';
+
+                    // Show product ID and barcode
+                    document.getElementById('productId').textContent = `Editing: ${productId}`;
+
+                    // Generate barcode image
+                    try {
+                        generateBarcodeImage(product.barcode);
+                        document.getElementById('barcodeNumber').textContent = `Barcode: ${product.barcode}`;
+                        document.getElementById('barcodeText').textContent = product.barcode;
+                        document.getElementById('productNameDisplay').textContent = product.product_name;
+                        document.getElementById('productPriceDisplay').textContent = `Rs. ${parseFloat(product.sale_price || 0).toFixed(2)}`;
+                        document.getElementById('productWeightDisplay').textContent = product.weight || '';
+                        document.getElementById('barcodeSection').style.display = 'block';
+                    } catch (barcodeError) {
+                        console.warn('Barcode generation warning:', barcodeError);
+                    }
+
+                    // Clear any previous error status
+                    document.getElementById('statusMessage').style.display = 'none';
+
+                    // Scroll to the form section
+                    setTimeout(() => {
+                        const formElement = document.querySelector('.card');
+                        if (formElement) {
+                            formElement.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        }
+                    }, 100);
+
+                } else {
+                    showStatus('❌ Product not found!', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Edit error:', error);
+                showStatus('❌ Error loading product for editing. Please refresh the page and try again.', 'error');
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        // Show delete confirmation
+        function showDeleteConfirmation(productId, productName) {
+            productToDelete = { id: productId, name: productName };
+            document.getElementById('deleteMessage').textContent = `Are you sure you want to delete "${productName}"? This action cannot be undone.`;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        // Confirm delete
+        async function confirmDelete() {
+            if (!productToDelete) return;
+
+            showButtonLoader('deleteConfirmBtn', true);
+            document.getElementById('deleteCancelBtn').disabled = true;
+
+            try {
+                // Use centralized delete helper (handles offline fallback and cache)
+                const result = await deleteProductFromSheet(productToDelete.id);
+
+                if (result && result.success) {
+                    showStatus('✅ Product deleted successfully!', 'success');
+
+                    // Give UI a moment then reload to ensure consistent state
+                    setTimeout(() => { window.location.reload(); }, 700);
+                } else {
+                    showStatus('❌ Error deleting product: ' + (result?.error || result?.message || 'Unknown'), 'error');
+                }
+
+            } catch (error) {
+                console.error('❌ Delete error:', error);
+                showStatus('❌ Error deleting product', 'error');
+            } finally {
+                cancelDelete();
+            }
+        }
+
+        // Cancel delete
+        function cancelDelete() {
+            productToDelete = null;
+            document.getElementById('deleteModal').style.display = 'none';
+            showButtonLoader('deleteConfirmBtn', false, 'Delete');
+            document.getElementById('deleteCancelBtn').disabled = false;
+        }
+
+        // Reset form - FIXED VERSION
+        function resetForm(userInitiated = false) {
+            console.log('Resetting form... isEditing was:', isEditing, 'userInitiated=', userInitiated);
+
+            // capture previous editing state
+            const wasEditing = isEditing;
+
+            // CRITICAL: First set isEditing to false
+            isEditing = false;
+
+            // Reset the form completely
+            const form = document.getElementById('productForm');
+            if (form) {
+                form.reset();
+                window.location.reload();
+            }
+
+            // Set default values
+            document.getElementById('minimum_quantity').value = '10';
+            document.getElementById('purchase_price').value = '0.00';
+            document.getElementById('sale_price').value = '0.00';
+            document.getElementById('quantity').value = '0';
+
+            // Reset form title and button text
+            document.getElementById('formTitle').textContent = 'Add New Product';
+            document.getElementById('submitBtnText').textContent = 'Save Product';
+            document.getElementById('productId').textContent = '';
+
+            // Clear hidden fields
+            document.getElementById('editProductId').value = '';
+            document.getElementById('currentBarcode').value = '';
+            document.getElementById('isEditMode').value = 'false';
+
+            // CRITICAL: Hide barcode edit field and clear it
+            document.getElementById('barcodeEditContainer').classList.remove('show');
+            document.getElementById('barcodeEdit').value = '';
+
+            // Clear barcode duplicate error
+            const barcodeError = document.getElementById('barcodeDuplicateError');
+            if (barcodeError) {
+                barcodeError.classList.remove('show');
+                barcodeError.textContent = 'This barcode is already assigned to another product!';
+            }
+
+            // Clear input fields with datalists
+            document.getElementById('category').value = '';
+            document.getElementById('weight').value = '';
+            document.getElementById('unit').value = '';
+
+            // Clear price error
+            document.getElementById('salePriceError').classList.remove('show');
+
+            // Hide barcode section
+            document.getElementById('barcodeSection').style.display = 'none';
+
+            // Clear status message
+            document.getElementById('statusMessage').style.display = 'none';
+
+            // Reset global variables
+            currentBarcode = '';
+            currentProductId = '';
+            currentProductName = '';
+            currentProductPrice = '';
+            currentProductWeight = '';
+
+            // Clear search
+            const searchInput = document.getElementById('searchProductList');
+            if (searchInput) {
+                searchInput.value = '';
+                // Trigger search reset to show all products
+                if (searchInput.dispatchEvent) {
+                    searchInput.dispatchEvent(new Event('input'));
+                }
+            }
+
+            // Force refresh product list to show all products
+            refreshProductList();
+
+            // Clear category filter if active
+            if (selectedCategoryFilter) {
+                clearCategoryFilter();
+            }
+
+            console.log('Form reset complete. isEditing now:', isEditing);
+
+            // Show success message
+            showStatus('✅ Form reset to "Add New Product" mode', 'success');
+
+            // Re-enable submit button and reset its text/state
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                const submitText = document.getElementById('submitBtnText');
+                if (submitText) submitText.textContent = 'Save Product';
+            }
+
+            // If user clicked Reset while previously editing, do a full reload to ensure clean state
+            if (userInitiated && wasEditing) {
+                // small delay so the success message shows briefly, then reload
+                setTimeout(() => { window.location.reload(); }, 250);
+            }
+        }
+
+        // Search product list
+        document.getElementById('searchProductList').addEventListener('input', function (e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+
+            const rows = document.querySelectorAll('#productTableBody tr');
+            let visibleCount = 0;
+
+            // If search term is empty, show all rows
+            if (searchTerm === '') {
+                rows.forEach(row => {
+                    row.style.display = '';
+                    visibleCount++;
+                });
+
+                // Re-apply category filter if active
+                if (selectedCategoryFilter) {
+                    applyCategoryFilter();
+                }
+                return;
+            }
+
+            rows.forEach(row => {
+                // Skip rows hidden by category filter
+                if (row.style.display === 'none' && selectedCategoryFilter) return;
+
+                const cells = row.cells;
+                if (cells.length < 11) return;
+
+                const id = cells[0].textContent.toLowerCase();
+                const name = cells[1].textContent.toLowerCase();
+                const categoryCell = cells[2];
+                const categoryBadge = categoryCell.querySelector('.category-badge');
+                const category = categoryBadge ? categoryBadge.textContent.toLowerCase() : categoryCell.textContent.toLowerCase();
+                const barcode = cells[7].textContent.toLowerCase();
+                const price = cells[4].textContent.toLowerCase();
+                const weight = cells[8].textContent.toLowerCase();
+                const unit = cells[9].textContent.toLowerCase();
+
+                if (id.includes(searchTerm) ||
+                    name.includes(searchTerm) ||
+                    category.includes(searchTerm) ||
+                    barcode.includes(searchTerm) ||
+                    price.includes(searchTerm) ||
+                    weight.includes(searchTerm) ||
+                    unit.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Show message if no results
+            if (visibleCount === 0 && searchTerm !== '') {
+                const tbody = document.getElementById('productTableBody');
+                if (!document.getElementById('noSearchResults')) {
+                    const messageRow = document.createElement('tr');
+                    messageRow.id = 'noSearchResults';
+                    messageRow.innerHTML = `
+                    <td colspan="11" style="text-align: center; padding: 40px; color: #999;">
+                        <i class="fas fa-search fa-3x"></i>
+                        <p>No products found for "${searchTerm}"</p>
+                        <button onclick="document.getElementById('searchProductList').value=''; document.getElementById('searchProductList').dispatchEvent(new Event('input'));" class="btn btn-primary" style="margin-top: 10px;">
+                            <i class="fas fa-times"></i> Clear Search
+                        </button>
+                    </td>
+                `;
+                    tbody.appendChild(messageRow);
+                }
+            } else {
+                const messageRow = document.getElementById('noSearchResults');
+                if (messageRow) {
+                    messageRow.remove();
+                }
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function (event) {
+                const dropdown = document.getElementById('categoryFilterDropdown');
+                const filterBtn = document.querySelector('.category-filter-btn');
+
+                if (dropdown && filterBtn && !dropdown.contains(event.target) && !filterBtn.contains(event.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Update user info
+            const user = JSON.parse(localStorage.getItem('pos_user'));
+            if (user && user.username) {
+                document.getElementById('userInfo').innerHTML = `
+                <span style="background: #e3f2fd; padding: 5px 10px; border-radius: 4px; color: #1976d2;">
+                    <i class="fas fa-user"></i> ${user.username} (${user.role})
+                </span>
+                <button onclick="logout()" class="btn btn-danger" style="padding: 8px 15px; font-size: 14px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            `;
+            }
+
+            // Load products
+            setTimeout(() => {
+                loadProductList();
+            }, 100);
+        });
+    </script>
+</body>
+
+</html>
