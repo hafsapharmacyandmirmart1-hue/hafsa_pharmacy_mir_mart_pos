@@ -19,7 +19,7 @@ async function login(username, password) {
     try {
         // Use the API_URL from google-sheet-api.js
         // If not defined, use the default
-        const apiUrl = window.API_URL || 'https://script.google.com/macros/s/AKfycbzByr-FLd3FwSc-ZfcDawfsAAFtGMm3MkfOblAT6DkbnO6_pXeOKy-jpMgafj_BVWsYHA/exec';
+        const apiUrl = window.API_URL || 'https://script.google.com/macros/s/AKfycbyXx-gKXpUnAf4-aET5c9lyeU2fvPgG8aWKJ-CFTPhdLloGH3dXNIdDSm_84B_Wpz9-/exec';
         
         const params = new URLSearchParams({
             action: 'login',

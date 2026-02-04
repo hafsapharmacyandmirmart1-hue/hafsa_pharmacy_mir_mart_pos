@@ -1,5 +1,5 @@
-// Google Sheets API Module - UPDATED
-const API_URL = 'https://script.google.com/macros/s/AKfycbzByr-FLd3FwSc-ZfcDawfsAAFtGMm3MkfOblAT6DkbnO6_pXeOKy-jpMgafj_BVWsYHA/exec';
+// Google Sheets API Module - FIXED VERSION
+const API_URL = 'https://script.google.com/macros/s/AKfycbyXx-gKXpUnAf4-aET5c9lyeU2fvPgG8aWKJ-CFTPhdLloGH3dXNIdDSm_84B_Wpz9-/exec';
 // Expose to window so other pages/scripts can reuse the same API endpoint variable
 window.API_URL = API_URL;
 
@@ -10,216 +10,465 @@ let saleItemsCache = {};
 let cacheTimestamp = 0;
 const CACHE_DURATION = 30000;
 
-// Check barcode duplicate on backend
-window.checkBarcodeDuplicateBackend = async function(barcode, excludeProductId = '') {
+// Track pending requests to prevent duplicates
+const pendingRequests = new Map();
+
+// ============================================
+// VALIDATION HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Validate product data before sending to backend
+ * @param {Object} productData - Product data to validate
+ * @returns {Object} { valid: boolean, errors: Array }
+ */
+function validateProductData(productData) {
+    const errors = [];
+
+    if (!productData.product_name || productData.product_name.trim() === '') {
+        errors.push('Product name is required');
+    } else if (productData.product_name.length > 200) {
+        errors.push('Product name must be less than 200 characters');
+    }
+
+    if (!productData.category || productData.category.trim() === '') {
+        errors.push('Category is required');
+    }
+
+    if (productData.purchase_price === undefined || productData.purchase_price === null || productData.purchase_price === '') {
+        errors.push('Purchase price is required');
+    } else {
+        const purchasePrice = parseFloat(productData.purchase_price);
+        if (isNaN(purchasePrice) || purchasePrice < 0) {
+            errors.push('Purchase price must be a valid positive number');
+        }
+    }
+
+    if (productData.sale_price === undefined || productData.sale_price === null || productData.sale_price === '') {
+        errors.push('Sale price is required');
+    } else {
+        const salePrice = parseFloat(productData.sale_price);
+        if (isNaN(salePrice) || salePrice < 0) {
+            errors.push('Sale price must be a valid positive number');
+        }
+    }
+
+    if (productData.quantity === undefined || productData.quantity === null || productData.quantity === '') {
+        errors.push('Quantity is required');
+    } else {
+        const quantity = parseInt(productData.quantity);
+        if (isNaN(quantity) || quantity < 0) {
+            errors.push('Quantity must be a valid positive number');
+        }
+    }
+
+    if (productData.minimum_quantity === undefined || productData.minimum_quantity === null || productData.minimum_quantity === '') {
+        errors.push('Minimum quantity is required');
+    } else {
+        const minQty = parseInt(productData.minimum_quantity);
+        if (isNaN(minQty) || minQty < 0) {
+            errors.push('Minimum quantity must be a valid positive number');
+        }
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors: errors
+    };
+}
+
+/**
+ * Validate sale data before sending to backend
+ * @param {Object} saleData - Sale data to validate
+ * @returns {Object} { valid: boolean, errors: Array }
+ */
+function validateSaleData(saleData) {
+    const errors = [];
+
+    if (!saleData.order_number || saleData.order_number.trim() === '') {
+        errors.push('Order number is required');
+    }
+
+    if (saleData.total_items === undefined || saleData.total_items === null) {
+        errors.push('Total items is required');
+    } else {
+        const totalItems = parseInt(saleData.total_items);
+        if (isNaN(totalItems) || totalItems <= 0) {
+            errors.push('Total items must be a positive number');
+        }
+    }
+
+    if (saleData.total_amount === undefined || saleData.total_amount === null) {
+        errors.push('Total amount is required');
+    } else {
+        const totalAmount = parseFloat(saleData.total_amount);
+        if (isNaN(totalAmount) || totalAmount <= 0) {
+            errors.push('Total amount must be a positive number');
+        }
+    }
+
+    if (!saleData.payment_method || saleData.payment_method.trim() === '') {
+        errors.push('Payment method is required');
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors: errors
+    };
+}
+
+/**
+ * Make a POST request to the API with proper error handling
+ * @param {Object} payload - Data to send
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {Promise<Object>} - API response
+ */
+async function makeApiRequest(payload, timeout = 20000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
-        const params = new URLSearchParams({
-            action: 'checkDuplicateBarcode',
-            barcode: barcode,
-            exclude_product_id: excludeProductId
-        });
-
-        const url = `${API_URL}?${params}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch(url, {
-            method: 'GET',
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
             signal: controller.signal,
             cache: 'no-cache'
         });
 
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
+        return data;
+
+    } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error.name === 'AbortError') {
+            throw new Error('REQUEST_TIMEOUT');
+        } else if (error.message.includes('HTTP error')) {
+            throw new Error(`SERVER_ERROR: ${error.message}`);
+        } else {
+            throw new Error('NETWORK_ERROR');
+        }
+    }
+}
+
+/**
+ * Get error message based on error type
+ * @param {Error} error - Error object
+ * @returns {Object} - Error response object
+ */
+function getErrorResponse(error, defaultMessage = 'An error occurred') {
+    let message = defaultMessage;
+    let errorType = 'UNKNOWN_ERROR';
+
+    if (error.message === 'REQUEST_TIMEOUT') {
+        message = 'Request took too long. Please check your connection and try again.';
+        errorType = 'TIMEOUT';
+    } else if (error.message.startsWith('SERVER_ERROR')) {
+        message = 'Server error occurred. Please try again later.';
+        errorType = 'SERVER_ERROR';
+    } else if (error.message === 'NETWORK_ERROR') {
+        message = 'Could not connect to the server. Please check your internet connection.';
+        errorType = 'NETWORK_ERROR';
+    }
+
+    return {
+        success: false,
+        error: errorType,
+        message: message,
+        isNetworkError: true
+    };
+}
+
+// ============================================
+// API FUNCTIONS
+// ============================================
+
+/**
+ * Check if barcode is duplicate
+ * @param {string} barcode - Barcode to check
+ * @param {string} excludeProductId - Product ID to exclude from check
+ * @returns {Promise<Object>} - { success: boolean, isDuplicate: boolean }
+ */
+window.checkBarcodeDuplicateBackend = async function (barcode, excludeProductId = '') {
+    // Validate input
+    if (!barcode || barcode.trim() === '') {
+        return {
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: 'Barcode is required'
+        };
+    }
+
+    const payload = {
+        action: 'checkDuplicateBarcode',
+        barcode: barcode.trim(),
+        exclude_product_id: excludeProductId || ''
+    };
+
+    try {
+        const data = await makeApiRequest(payload, 10000);
         return data;
     } catch (error) {
         console.error('Error checking barcode duplicate:', error);
-        return {
-            success: false,
-            isDuplicate: false,
-            error: 'Network error checking barcode'
-        };
+        return getErrorResponse(error, 'Error checking barcode duplicate');
     }
 };
 
-// Check sheet capacity for row limit
+/**
+ * Check Google Sheet capacity
+ * @returns {Promise<Object>} - { available: boolean, totalRows: number, usedRows: number }
+ */
 window.checkSheetCapacity = async function () {
+    const payload = {
+        action: 'checkCapacity'
+    };
+
     try {
-        const url = `${API_URL}?action=checkCapacity&_=${Date.now()}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
-        const response = await fetch(url, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
-        
-        clearTimeout(timeoutId);
-        const data = await response.json();
+        const data = await makeApiRequest(payload, 10000);
         return data;
     } catch (error) {
-        return { 
-            available: true, 
-            message: 'Could not check capacity. Assuming available.',
-            totalRows: 1000,
+        console.error('Error checking sheet capacity:', error);
+        // Return conservative estimate on error - assume capacity is limited
+        return {
+            available: true,
+            warning: true,
+            message: 'Could not verify capacity. Proceeding with caution.',
+            totalRows: 10000,
             usedRows: 0,
-            availableRows: 1000
+            availableRows: 10000
         };
     }
 };
 
-// Add product
+/**
+ * Add product to Google Sheet
+ * @param {Object} productData - Product data to add
+ * @returns {Promise<Object>} - { success: boolean, productId?: string, barcode?: string, message: string }
+ */
 window.addProductToSheet = async function (productData) {
-    const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'admin' };
-    
-    // Check sheet capacity first
-    const capacity = await checkSheetCapacity();
-    if (capacity.available === false) {
+    // Validate input data
+    const validation = validateProductData(productData);
+    if (!validation.valid) {
         return {
             success: false,
-            error: 'No rows available in Google Sheets. Please add more rows.',
-            rowLimit: true,
-            message: 'Sheet is full. Please add more rows.'
+            error: 'VALIDATION_ERROR',
+            message: validation.errors.join(', '),
+            validationErrors: validation.errors
         };
     }
 
-    const params = new URLSearchParams({
-        action: 'addProduct',
-        product_name: productData.product_name,
-        category: productData.category,
-        purchase_price: productData.purchase_price,
-        sale_price: productData.sale_price,
-        quantity: productData.quantity,
-        minimum_quantity: productData.minimum_quantity,
-        weight: productData.weight || '',
-        unit: productData.unit || '',
-        added_by: user.username
-    });
-
-    try {
-        productsCache = null;
-        cacheTimestamp = 0;
-
-        const url = `${API_URL}?${params}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const response = await fetch(url, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-
-    } catch (error) {
-        return {
-            success: true,
-            productId: 'PROD' + Date.now(),
-            barcode: '629' + Math.floor(Math.random() * 1000000000).toString().padStart(9, '0'),
-            message: 'Product saved (offline mode)'
-        };
-    }
-};
-
-// Update product with barcode duplicate handling
-window.updateProductInSheet = async function (productData) {
     const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'admin' };
 
-    const params = new URLSearchParams({
-        action: 'updateProduct',
-        product_id: productData.product_id,
-        product_name: productData.product_name,
-        category: productData.category,
-        purchase_price: productData.purchase_price,
-        sale_price: productData.sale_price,
-        quantity: productData.quantity,
-        minimum_quantity: productData.minimum_quantity,
-        weight: productData.weight || '',
-        unit: productData.unit || '',
-        barcode: productData.barcode || '',
-        updated_by: user.username
-    });
+    // Generate request key for deduplication
+    const requestKey = `addProduct_${productData.product_name}_${Date.now()}`;
+
+    // Check if same request is already pending
+    if (pendingRequests.has(requestKey)) {
+        return {
+            success: false,
+            error: 'DUPLICATE_REQUEST',
+            message: 'Request already in progress. Please wait.'
+        };
+    }
 
     try {
-        productsCache = null;
-        cacheTimestamp = 0;
+        // Mark request as pending
+        pendingRequests.set(requestKey, true);
 
-        const url = `${API_URL}?${params}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const response = await fetch(url, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
-
-        clearTimeout(timeoutId);
-        const data = await response.json();
-        
-        // Check for barcode duplicate error
-        if (data && data.barcodeDuplicate) {
+        // Check sheet capacity first
+        const capacity = await checkSheetCapacity();
+        if (capacity.available === false) {
             return {
                 success: false,
-                barcodeDuplicate: true,
-                error: data.error || 'Barcode already exists',
-                message: data.message || 'This barcode is already assigned to another product'
+                error: 'CAPACITY_EXCEEDED',
+                rowLimit: true,
+                message: capacity.message || 'Sheet is full. Please add more rows.'
             };
         }
-        
-        return data;
-    } catch (error) {
-        console.error('Update product error:', error);
-        return { 
-            success: false, 
-            error: 'Network error updating product',
-            message: 'Update failed due to network error'
+
+        // Prepare payload
+        const payload = {
+            action: 'addProduct',
+            product_name: productData.product_name.trim(),
+            category: productData.category.trim(),
+            purchase_price: parseFloat(productData.purchase_price),
+            sale_price: parseFloat(productData.sale_price),
+            quantity: parseInt(productData.quantity),
+            minimum_quantity: parseInt(productData.minimum_quantity),
+            weight: productData.weight ? productData.weight.toString().trim() : '',
+            unit: productData.unit ? productData.unit.toString().trim() : '',
+            added_by: user.username
         };
+
+        // Clear cache before adding
+        productsCache = null;
+        cacheTimestamp = 0;
+
+        // Make API request
+        const data = await makeApiRequest(payload, 20000);
+
+        // Check if backend reported success
+        if (!data.success) {
+            return {
+                success: false,
+                error: data.error || 'BACKEND_ERROR',
+                message: data.message || 'Failed to add product'
+            };
+        }
+
+        return data;
+
+    } catch (error) {
+        console.error('Add product error:', error);
+        return getErrorResponse(error, 'Failed to add product');
+    } finally {
+        // Remove from pending requests
+        pendingRequests.delete(requestKey);
     }
 };
 
-// Delete product
-window.deleteProductFromSheet = async function (productId) {
+/**
+ * Update product in Google Sheet
+ * @param {Object} productData - Product data to update (must include product_id)
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
+window.updateProductInSheet = async function (productData) {
+    // Validate product ID
+    if (!productData.product_id || productData.product_id.trim() === '') {
+        return {
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: 'Product ID is required for update'
+        };
+    }
+
+    // Validate other product data
+    const validation = validateProductData(productData);
+    if (!validation.valid) {
+        return {
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: validation.errors.join(', '),
+            validationErrors: validation.errors
+        };
+    }
+
     const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'admin' };
 
-    const params = new URLSearchParams({
+    // Generate request key for deduplication
+    const requestKey = `updateProduct_${productData.product_id}_${Date.now()}`;
+
+    if (pendingRequests.has(requestKey)) {
+        return {
+            success: false,
+            error: 'DUPLICATE_REQUEST',
+            message: 'Update already in progress. Please wait.'
+        };
+    }
+
+    try {
+        pendingRequests.set(requestKey, true);
+
+        const payload = {
+            action: 'updateProduct',
+            product_id: productData.product_id.trim(),
+            product_name: productData.product_name.trim(),
+            category: productData.category.trim(),
+            purchase_price: parseFloat(productData.purchase_price),
+            sale_price: parseFloat(productData.sale_price),
+            quantity: parseInt(productData.quantity),
+            minimum_quantity: parseInt(productData.minimum_quantity),
+            weight: productData.weight ? productData.weight.toString().trim() : '',
+            unit: productData.unit ? productData.unit.toString().trim() : '',
+            barcode: productData.barcode ? productData.barcode.toString().trim() : '',
+            updated_by: user.username
+        };
+
+        productsCache = null;
+        cacheTimestamp = 0;
+
+        const data = await makeApiRequest(payload, 20000);
+
+        // Check for specific error types
+        if (!data.success) {
+            // Handle barcode duplicate error specifically
+            if (data.barcodeDuplicate || data.error === 'BARCODE_DUPLICATE') {
+                return {
+                    success: false,
+                    barcodeDuplicate: true,
+                    error: 'BARCODE_DUPLICATE',
+                    message: data.message || 'This barcode is already assigned to another product'
+                };
+            }
+
+            return {
+                success: false,
+                error: data.error || 'UPDATE_FAILED',
+                message: data.message || 'Failed to update product'
+            };
+        }
+
+        return data;
+
+    } catch (error) {
+        console.error('Update product error:', error);
+        return getErrorResponse(error, 'Failed to update product');
+    } finally {
+        pendingRequests.delete(requestKey);
+    }
+};
+
+/**
+ * Delete product from Google Sheet
+ * @param {string} productId - Product ID to delete
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
+window.deleteProductFromSheet = async function (productId) {
+    // Validate product ID
+    if (!productId || productId.trim() === '') {
+        return {
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: 'Product ID is required for deletion'
+        };
+    }
+
+    const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'admin' };
+
+    const payload = {
         action: 'deleteProduct',
-        product_id: productId,
+        product_id: productId.trim(),
         deleted_by: user.username
-    });
+    };
 
     try {
         productsCache = null;
         cacheTimestamp = 0;
 
-        const url = `${API_URL}?${params}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const data = await makeApiRequest(payload, 15000);
 
-        const response = await fetch(url, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
+        if (!data.success) {
+            return {
+                success: false,
+                error: data.error || 'DELETE_FAILED',
+                message: data.message || 'Failed to delete product'
+            };
+        }
 
-        clearTimeout(timeoutId);
-        return await response.json();
+        return data;
+
     } catch (error) {
-        return { success: true, message: 'Product deleted (offline mode)' };
+        console.error('Delete product error:', error);
+        return getErrorResponse(error, 'Failed to delete product');
     }
 };
 
@@ -256,83 +505,136 @@ window.getProducts = async function (forceRefresh = false) {
     }
 };
 
-// Add sale
+/**
+ * Add sale to Google Sheet
+ * @param {Object} saleData - Sale data to add
+ * @returns {Promise<Object>} - { success: boolean, order_number: string, message: string }
+ */
 window.addSaleV2 = async function (saleData) {
-    try {
-        const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
+    // Validate sale data
+    const validation = validateSaleData(saleData);
+    if (!validation.valid) {
+        return {
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: validation.errors.join(', '),
+            validationErrors: validation.errors
+        };
+    }
 
-        const params = new URLSearchParams({
+    const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
+
+    // Generate request key for deduplication
+    const requestKey = `addSale_${saleData.order_number}_${Date.now()}`;
+
+    if (pendingRequests.has(requestKey)) {
+        return {
+            success: false,
+            error: 'DUPLICATE_REQUEST',
+            message: 'Sale submission already in progress. Please wait.'
+        };
+    }
+
+    try {
+        pendingRequests.set(requestKey, true);
+
+        const payload = {
             action: 'addSaleV2',
-            order_number: saleData.order_number,
-            customer_name: saleData.customer_name,
-            total_items: saleData.total_items,
-            total_amount: saleData.total_amount,
+            order_number: saleData.order_number.trim(),
+            customer_name: saleData.customer_name ? saleData.customer_name.trim() : 'Walk-in Customer',
+            total_items: parseInt(saleData.total_items),
+            total_amount: parseFloat(saleData.total_amount),
             date: saleData.date,
             time: saleData.time,
-            payment_method: saleData.payment_method,
-            amount_paid: saleData.amount_paid || 0,
-            change: saleData.change || 0,
-            tax: saleData.tax || 0,
+            payment_method: saleData.payment_method.trim(),
+            amount_paid: parseFloat(saleData.amount_paid) || 0,
+            change: parseFloat(saleData.change) || 0,
+            tax: parseFloat(saleData.tax) || 0,
             sold_by: user.username
-        });
+        };
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        const response = await fetch(`${API_URL}?${params}`, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
-
-        clearTimeout(timeoutId);
-        const data = await response.json();
+        const data = await makeApiRequest(payload, 20000);
 
         // Invalidate sales cache
         salesCache = null;
 
+        if (!data.success) {
+            return {
+                success: false,
+                error: data.error || 'SALE_FAILED',
+                message: data.message || 'Failed to record sale'
+            };
+        }
+
         return data;
+
     } catch (error) {
-        return {
-            success: true,
-            order_number: saleData.order_number,
-            message: 'Sale recorded (offline mode)'
-        };
+        console.error('Add sale error:', error);
+        return getErrorResponse(error, 'Failed to record sale');
+    } finally {
+        pendingRequests.delete(requestKey);
     }
 };
 
-// Add sale item
+/**
+ * Add sale item to Google Sheet
+ * @param {Object} itemData - Sale item data
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
 window.addSaleItem = async function (itemData) {
-    try {
-        const params = new URLSearchParams({
-            action: 'addSaleItem',
-            order_number: itemData.order_number,
-            product_name: itemData.product_name,
-            quantity: itemData.quantity,
-            category: itemData.category,
-            weight: itemData.weight,
-            unit: itemData.unit,
-            price: itemData.price,
-            line_total: itemData.line_total,
-            product_id: itemData.product_id || ''
-        });
+    // Validate required fields
+    const errors = [];
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+    if (!itemData.order_number || itemData.order_number.trim() === '') {
+        errors.push('Order number is required');
+    }
+    if (!itemData.product_name || itemData.product_name.trim() === '') {
+        errors.push('Product name is required');
+    }
+    if (itemData.quantity === undefined || itemData.quantity === null || parseInt(itemData.quantity) <= 0) {
+        errors.push('Valid quantity is required');
+    }
+    if (itemData.price === undefined || itemData.price === null || parseFloat(itemData.price) < 0) {
+        errors.push('Valid price is required');
+    }
 
-        const response = await fetch(`${API_URL}?${params}`, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-cache'
-        });
-
-        clearTimeout(timeoutId);
-        return await response.json();
-    } catch (error) {
+    if (errors.length > 0) {
         return {
-            success: true,
-            message: 'Sale item saved (offline mode)'
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: errors.join(', ')
         };
+    }
+
+    try {
+        const payload = {
+            action: 'addSaleItem',
+            order_number: itemData.order_number.trim(),
+            product_name: itemData.product_name.trim(),
+            quantity: parseInt(itemData.quantity),
+            category: itemData.category ? itemData.category.trim() : '',
+            weight: itemData.weight ? itemData.weight.toString() : '',
+            unit: itemData.unit ? itemData.unit.toString() : '',
+            price: parseFloat(itemData.price),
+            line_total: parseFloat(itemData.line_total),
+            product_id: itemData.product_id ? itemData.product_id.trim() : ''
+        };
+
+        const data = await makeApiRequest(payload, 20000);
+
+        if (!data.success) {
+            return {
+                success: false,
+                error: data.error || 'ITEM_ADD_FAILED',
+                message: data.message || 'Failed to add sale item'
+            };
+        }
+
+        return data;
+
+    } catch (error) {
+        console.error('Add sale item error:', error);
+        return getErrorResponse(error, 'Failed to add sale item');
     }
 };
 
@@ -450,64 +752,95 @@ window.clearSaleItemsCache = function (orderNumber) {
     }
 };
 
-// Other functions
+/**
+ * Get sales from Google Sheet (legacy, use getSalesV2 instead)
+ * @returns {Promise<Array>} - Array of sales
+ */
 window.getSales = async function () {
+    const payload = {
+        action: 'getSales'
+    };
+
     try {
-        const response = await fetch(`${API_URL}?action=getSales&_=${Date.now()}`);
-        const data = await response.json();
+        const data = await makeApiRequest(payload, 15000);
         return data.sales || [];
     } catch (error) {
+        console.error('Get sales error:', error);
         return [];
     }
 };
 
+/**
+ * Add sale (legacy, use addSaleV2 instead)
+ * @param {Object} saleData - Sale data
+ * @returns {Promise<Object>} - Result object
+ */
 window.addSale = async function (saleData) {
+    const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
+
+    const payload = {
+        action: 'addSale',
+        product_id: saleData.product_id || '',
+        product_name: saleData.product_name || '',
+        quantity_sold: parseInt(saleData.quantity_sold) || 0,
+        total_price: parseFloat(saleData.total_price) || 0,
+        sold_by: user.username
+    };
+
     try {
-        const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
-
-        const params = new URLSearchParams({
-            action: 'addSale',
-            product_id: saleData.product_id || '',
-            product_name: saleData.product_name || '',
-            quantity_sold: saleData.quantity_sold || 0,
-            total_price: saleData.total_price || 0,
-            sold_by: user.username
-        });
-
-        const response = await fetch(`${API_URL}?${params}`);
-        const data = await response.json();
+        const data = await makeApiRequest(payload, 15000);
         return data;
-
     } catch (error) {
+        console.error('Add sale error:', error);
         return {
             success: false,
-            error: 'Failed to record sale.'
+            error: 'NETWORK_ERROR',
+            message: 'Failed to record sale due to network error'
         };
     }
 };
 
+/**
+ * Get activity logs from Google Sheet
+ * @returns {Promise<Array>} - Array of log entries
+ */
 window.getLogs = async function () {
+    const payload = {
+        action: 'getLogs'
+    };
+
     try {
-        const response = await fetch(`${API_URL}?action=getLogs`);
-        const data = await response.json();
+        const data = await makeApiRequest(payload, 10000);
         return data.logs || [];
     } catch (error) {
+        console.error('Get logs error:', error);
         return [];
     }
 };
 
+/**
+ * Add activity log entry
+ * @param {string} action - Action description
+ * @returns {Promise<void>}
+ */
 window.addLog = async function (action) {
-    try {
-        const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
-        const params = new URLSearchParams({
-            action: 'addLog',
-            user: user.username,
-            action: action
-        });
+    if (!action || action.trim() === '') {
+        return; // Silent fail for empty actions
+    }
 
-        await fetch(`${API_URL}?${params}`);
+    const user = JSON.parse(localStorage.getItem('pos_user')) || { username: 'system' };
+
+    const payload = {
+        action: 'addLog',
+        user: user.username,
+        log_action: action.trim()
+    };
+
+    try {
+        await makeApiRequest(payload, 5000);
     } catch (error) {
-        // Silent fail
+        // Silent fail for logging errors
+        console.error('Add log error:', error);
     }
 };
 
